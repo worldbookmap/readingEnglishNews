@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { formatDate, readingMinutes } from "@/components/ArticleCard";
+import { ReadToggle } from "@/components/ReadToggle";
 import { Reader } from "@/components/Reader";
 import { SOURCE_LABELS } from "@/lib/sources";
 import { db, type ArticleRow, type SavedSentenceRow, type SavedWordRow } from "@/lib/supabase";
@@ -37,9 +38,12 @@ export default async function ArticlePage({ params }: PageProps<"/articles/[id]"
         </div>
         <h1 className="font-serif text-3xl leading-tight font-semibold tracking-tight sm:text-4xl">{a.title}</h1>
         {a.byline && <p className="mt-3 text-sm text-muted">{a.byline}</p>}
-        <a href={a.url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm text-muted underline underline-offset-4 hover:text-ink">
-          원문 보기 ↗
-        </a>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <a href={a.url} target="_blank" rel="noreferrer" className="text-sm text-muted underline underline-offset-4 hover:text-ink">
+            원문 보기 ↗
+          </a>
+          <ReadToggle articleId={a.id} readAt={a.read_at} />
+        </div>
       </header>
       <Reader
         articleId={a.id}
@@ -47,6 +51,9 @@ export default async function ArticlePage({ params }: PageProps<"/articles/[id]"
         initialWords={(words.data ?? []) as SavedWordRow[]}
         initialSentences={(sentences.data ?? []) as SavedSentenceRow[]}
       />
+      <div className="mt-10">
+        <ReadToggle articleId={a.id} readAt={a.read_at} size="lg" />
+      </div>
     </article>
   );
 }

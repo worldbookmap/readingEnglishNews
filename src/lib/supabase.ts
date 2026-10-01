@@ -17,14 +17,15 @@ export interface ArticleRow {
   popular_on: string;
   popular_rank: number;
   fetched_at: string;
-  first_read_at: string | null;
-  last_read_at: string | null;
-  read_count: number;
+  first_opened_at: string | null; // "클릭함": set automatically when the article is opened
+  last_opened_at: string | null;
+  open_count: number;
+  read_at: string | null; // "읽었음": set when the reader marks it as read
 }
 
 export type ArticleSummary = Omit<ArticleRow, "blocks">;
 export const ARTICLE_SUMMARY_COLUMNS =
-  "id, source, url, title, byline, excerpt, image_url, published_at, word_count, popular_on, popular_rank, fetched_at, first_read_at, last_read_at, read_count";
+  "id, source, url, title, byline, excerpt, image_url, published_at, word_count, popular_on, popular_rank, fetched_at, first_opened_at, last_opened_at, open_count, read_at";
 
 export interface SavedWordRow {
   id: string;

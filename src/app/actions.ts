@@ -24,11 +24,22 @@ export async function login(formData: FormData) {
   redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/");
 }
 
-export async function markRead(articleId: string) {
-  const { error } = await db().rpc("mark_article_read", { p_id: articleId });
+export async function markOpened(articleId: string) {
+  const { error } = await db().rpc("mark_article_opened", { p_id: articleId });
   if (error) throw error;
   revalidatePath("/");
   revalidatePath("/history");
+}
+
+export async function setRead(articleId: string, read: boolean) {
+  const { error } = await db()
+    .from("articles")
+    .update({ read_at: read ? new Date().toISOString() : null })
+    .eq("id", articleId);
+  if (error) throw error;
+  revalidatePath("/");
+  revalidatePath("/history");
+  revalidatePath(`/articles/${articleId}`);
 }
 
 export async function saveWord(input: {

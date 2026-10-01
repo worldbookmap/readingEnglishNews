@@ -15,7 +15,6 @@ export function formatDate(iso: string | null, withTime = false) {
 export const readingMinutes = (words: number) => Math.max(1, Math.round(words / 220));
 
 export function ArticleCard({ article, showRank = true }: { article: ArticleSummary; showRank?: boolean }) {
-  const read = !!article.last_read_at;
   return (
     <Link
       href={`/articles/${article.id}`}
@@ -31,11 +30,7 @@ export function ArticleCard({ article, showRank = true }: { article: ArticleSumm
           <span className="font-medium uppercase tracking-wide">{SOURCE_LABELS[article.source]}</span>
           <span>·</span>
           <span>{readingMinutes(article.word_count)}분</span>
-          {read && (
-            <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent">
-              읽음 {formatDate(article.last_read_at)}
-            </span>
-          )}
+          <ReadStatus article={article} />
         </div>
         <h3 className="font-serif text-lg leading-snug font-semibold group-hover:underline group-hover:decoration-1 group-hover:underline-offset-4">
           {article.title}
@@ -53,4 +48,22 @@ export function ArticleCard({ article, showRank = true }: { article: ArticleSumm
       )}
     </Link>
   );
+}
+
+export function ReadStatus({ article }: { article: ArticleSummary }) {
+  if (article.read_at) {
+    return (
+      <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent">
+        읽었음 {formatDate(article.read_at)}
+      </span>
+    );
+  }
+  if (article.last_opened_at) {
+    return (
+      <span className="rounded-full border border-line px-2 py-0.5 text-[11px] text-muted">
+        클릭함 {formatDate(article.last_opened_at)}
+      </span>
+    );
+  }
+  return null;
 }

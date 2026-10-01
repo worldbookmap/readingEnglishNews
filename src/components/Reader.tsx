@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { markRead, removeSentence, removeWord, saveSentence, saveWord } from "@/app/actions";
+import { markOpened, removeSentence, removeWord, saveSentence, saveWord } from "@/app/actions";
 import { formatDefinition, lookup, naverDictUrl, normalizeWord, type Definition } from "@/lib/dictionary";
 import type { Block } from "@/lib/extract";
 import type { SavedSentenceRow, SavedWordRow } from "@/lib/supabase";
@@ -36,7 +36,7 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
   useEffect(() => {
     if (marked.current) return;
     marked.current = true;
-    markRead(articleId).catch(() => {});
+    markOpened(articleId).catch(() => {});
   }, [articleId]);
 
   const flash = useCallback((msg: string) => {
