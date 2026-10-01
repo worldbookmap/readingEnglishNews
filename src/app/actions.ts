@@ -1,0 +1,98 @@
+"use server";
+
+import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { AUTH_COOKIE, authToken } from "@/lib/auth";
+import { formatDefinition, lookup, normalizeWord } from "@/lib/dictionary";
+import { ingestPopular } from "@/lib/ingest";
+import { db, type SavedSentenceRow, type SavedWordRow } from "@/lib/supabase";
+
+export async function login(formData: FormData) {
+  const password = String(formData.get("password") ?? "");
+  const next = String(formData.get("next") ?? "/");
+  if (!process.env.APP_PASSWORD || password !== process.env.APP_PASSWORD) {
+    redirect(`/login?error=1&next=${encodeURIComponent(next)}`);
+  }
+  (await cookies()).set(AUTH_COOKIE, await authToken(password), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  });
+  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/");
+}
+
+export async function markRead(articleId: string) {
+  const { error } = await db().rpc("mark_article_read", { p_id: articleId });
+  if (error) throw error;
+  revalidatePath("/");
+  revalidatePath("/history");
+}
+
+export async function saveWord(input: {
+  articleId: string;
+  word: string;
+  context: string;
+  definition?: string | null;
+  phonetic?: string | null;
+}): Promise<SavedWordRow> {
+  const word = normalizeWord(input.word);
+  if (!word) throw new Error("empty word");
+  let { definition = null, phonetic = null } = input;
+  if (definition == null) {
+    const d = await lookup(word);
+    definition = formatDefinition(d);
+    phonetic = d?.phonetic ?? null;
+  }
+  const { data, error } = await db()
+    .from("saved_words")
+    .upsert(
+      { word, context: input.context.slice(0, 1000), definition, phonetic, article_id: input.articleId },
+      { onConflict: "word,article_id" },
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  revalidatePath("/words");
+  return data as SavedWordRow;
+}
+
+export async function removeWord(id: string) {
+  const { error } = await db().from("saved_words").delete().eq("id", id);
+  if (error) throw error;
+  revalidatePath("/words");
+}
+
+export async function saveSentence(input: { articleId: string; text: string }): Promise<SavedSentenceRow> {
+  const text = input.text.replace(/\s+/g, " ").trim().slice(0, 2000);
+  if (!text) throw new Error("empty sentence");
+  const { data, error } = await db()
+    .from("saved_sentences")
+    .upsert({ text, article_id: input.articleId }, { onConflict: "text,article_id" })
+    .select()
+    .single();
+  if (error) throw error;
+  revalidatePath("/sentences");
+  return data as SavedSentenceRow;
+}
+
+export async function removeSentence(id: string) {
+  const { error } = await db().from("saved_sentences").delete().eq("id", id);
+  if (error) throw error;
+  revalidatePath("/sentences");
+}
+
+export async function updateSentenceNote(id: string, note: string) {
+  const { error } = await db().from("saved_sentences").update({ note: note.trim() || null }).eq("id", id);
+  if (error) throw error;
+  revalidatePath("/sentences");
+}
+
+// Manual "fetch now" button on the home page (the daily cron does the same thing).
+export async function fetchNow() {
+  const result = await ingestPopular();
+  revalidatePath("/");
+  return { saved: result.saved.length, skipped: result.skipped.filter((s) => s.reason !== "already saved").length };
+}

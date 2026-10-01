@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+:root {
+  --paper: #faf8f3;
+  --card: #ffffff;
+  --ink: #1d1b18;
+  --muted: #6f6a62;
+  --line: #e6e1d6;
+  --accent: #b4441f;
+  --accent-soft: #f6e3d9;
+  --word-mark: #fbe7a1;
+  --sentence-mark: #dcebf7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #161513;
+    --card: #1f1d1a;
+    --ink: #ece8e0;
+    --muted: #9c968c;
+    --line: #34312c;
+    --accent: #ec8a62;
+    --accent-soft: #3a261c;
+    --word-mark: #5a4a12;
+    --sentence-mark: #1d3446;
+  }
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-word-mark: var(--word-mark);
+  --color-sentence-mark: var(--sentence-mark);
+  --font-sans: var(--font-ui);
+  --font-serif: var(--font-reading);
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* Reader: words are clickable, sentences highlightable. */
+.reader .w {
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background-color 120ms ease;
+}
+@media (hover: hover) {
+  .reader .w:hover {
+    background: var(--accent-soft);
+  }
+}
+.reader .w.saved {
+  background: var(--word-mark);
+  box-shadow: 0 1px 0 0 var(--accent);
+}
+.reader .w.active {
+  background: var(--accent);
+  color: var(--paper);
+}
+.reader .s.saved {
+  background: var(--sentence-mark);
+  border-radius: 3px;
+}
+.reader .s.active {
+  background: var(--accent-soft);
+  border-radius: 3px;
+}
