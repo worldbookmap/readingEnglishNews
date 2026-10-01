@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { STUDY_SOURCES, type StudySource } from "@/lib/studySources";
+import { STUDY_SOURCE_LABELS, type StudySource } from "@/lib/studySources";
 
 export interface MemoEntry {
   key: string;
@@ -16,7 +16,7 @@ type Filter = "all" | MemoEntry["source"];
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all", label: "전체" },
   { id: "article", label: "기사에서 저장" },
-  ...(Object.entries(STUDY_SOURCES) as [StudySource, string][]).map(([id, label]) => ({ id, label })),
+  ...(Object.entries(STUDY_SOURCE_LABELS) as [StudySource, string][]).map(([id, label]) => ({ id, label })),
 ];
 
 export function MemorizeList({ entries }: { entries: MemoEntry[] }) {
@@ -83,8 +83,8 @@ export function MemorizeList({ entries }: { entries: MemoEntry[] }) {
                 <span className="shrink-0 font-serif text-lg font-semibold">{e.word}:</span>
                 {/* Hidden meanings stay faintly visible so a glance can confirm a guess. */}
                 <span
-                  className={`whitespace-pre-line text-sm transition-opacity duration-200 ${
-                    shown ? "text-ink/80" : "select-none text-ink opacity-10"
+                  className={`whitespace-pre-line text-sm transition-[opacity,filter] duration-200 ${
+                    shown ? "text-ink/80" : "select-none text-ink opacity-20 blur-[3px]"
                   }`}
                 >
                   {e.meaning ?? "(뜻 없음)"}

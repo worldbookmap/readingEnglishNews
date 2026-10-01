@@ -4,3 +4,8 @@ export const STUDY_SOURCES = {
   baebjji: "study-baebjji",
 } as const;
 export type StudySource = keyof typeof STUDY_SOURCES;
+
+export const STUDY_SOURCE_LABELS: Record<StudySource, string> = {
+  colly: "콜리",
+  baebjji: "뱁찌",
+};
