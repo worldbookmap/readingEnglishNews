@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { refreshStudyWords } from "@/app/actions";
+import { RefreshIcon } from "./icons";
 import { STUDY_SOURCE_LABELS, type StudySource } from "@/lib/studySources";
 
 export function RefreshStudyWordsButton({ lastImported }: { lastImported: string | null }) {
@@ -15,8 +16,10 @@ export function RefreshStudyWordsButton({ lastImported }: { lastImported: string
       : "콜리·뱁찌 단어를 아직 불러오지 않았어요");
 
   return (
-    <div className="flex items-center gap-3">
-      <span className="text-sm text-muted">{status}</span>
+    <div className="flex min-w-0 items-center gap-2">
+      <span className="min-w-0 text-right text-xs text-muted" aria-live="polite">
+        {status}
+      </span>
       <button
         type="button"
         disabled={pending}
@@ -33,9 +36,11 @@ export function RefreshStudyWordsButton({ lastImported }: { lastImported: string
             }
           })
         }
-        className="rounded-full border border-line bg-card px-4 py-2 text-sm font-medium transition-colors hover:border-ink/40 disabled:opacity-60"
+        aria-label={pending ? "불러오는 중" : "새로 불러오기"}
+        title="새로 불러오기"
+        className="flex size-9 shrink-0 items-center justify-center rounded-full border border-line bg-card text-muted transition-colors hover:border-ink/40 hover:text-ink disabled:opacity-60"
       >
-        {pending ? "불러오는 중…" : "새로 불러오기"}
+        <RefreshIcon className={pending ? "animate-spin" : undefined} />
       </button>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { EyeIcon, EyeOffIcon } from "./icons";
 import { STUDY_SOURCE_LABELS, type StudySource } from "@/lib/studySources";
 
 export interface MemoEntry {
@@ -44,28 +45,32 @@ export function MemorizeList({ entries }: { entries: MemoEntry[] }) {
 
   return (
     <>
-      <div className="mb-5 flex flex-wrap items-center gap-2">
-        {FILTERS.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            onClick={() => setFilter(f.id)}
-            className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
-              filter === f.id ? "bg-ink text-paper" : "border border-line bg-card text-muted hover:text-ink"
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
+      <div className="mb-5 flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto">
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFilter(f.id)}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-sm transition-colors ${
+                filter === f.id ? "bg-ink text-paper" : "border border-line bg-card text-muted hover:text-ink"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           onClick={() => {
             setShowAll((v) => !v);
             setRevealed(new Set());
           }}
-          className="ml-auto rounded-full border border-line bg-card px-3 py-1.5 text-sm hover:border-ink/40"
+          aria-label={showAll ? "뜻 모두 가리기" : "뜻 모두 보기"}
+          title={showAll ? "뜻 모두 가리기" : "뜻 모두 보기"}
+          className="flex size-9 shrink-0 items-center justify-center rounded-full border border-line bg-card text-muted transition-colors hover:border-ink/40 hover:text-ink"
         >
-          {showAll ? "뜻 모두 가리기" : "뜻 모두 보기"}
+          {showAll ? <EyeOffIcon /> : <EyeIcon />}
         </button>
       </div>
 
@@ -78,9 +83,12 @@ export function MemorizeList({ entries }: { entries: MemoEntry[] }) {
                 type="button"
                 onClick={() => toggle(e.key)}
                 aria-expanded={shown}
-                className="flex w-full items-baseline gap-2 px-4 py-3 text-left hover:bg-paper"
+                className="flex w-full flex-col gap-0.5 px-4 py-3 text-left hover:bg-paper sm:flex-row sm:items-baseline sm:gap-3"
               >
-                <span className="shrink-0 font-serif text-lg font-semibold">{e.word}:</span>
+                <span className="font-serif text-lg font-semibold break-words sm:w-2/5 sm:shrink-0">
+                  {e.word}
+                  <span className="hidden sm:inline">:</span>
+                </span>
                 {/* Hidden meanings stay faintly visible so a glance can confirm a guess. */}
                 <span
                   className={`whitespace-pre-line text-sm transition-[opacity,filter] duration-200 ${

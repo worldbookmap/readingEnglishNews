@@ -29,8 +29,8 @@ export default async function MemorizePage() {
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
+      <div className="mb-6 flex items-end justify-between gap-3">
+        <div className="shrink-0">
           <p className="text-sm text-muted">{entries.length}개 단어</p>
           <h1 className="font-serif text-3xl font-semibold tracking-tight sm:text-4xl">암기장</h1>
         </div>
