@@ -6,9 +6,8 @@ import { usePathname } from "next/navigation";
 const LINKS = [
   { href: "/", label: "오늘의 기사" },
   { href: "/history", label: "읽은 글" },
-  { href: "/words", label: "단어장" },
+  { href: "/words", label: "단어·문장" },
   { href: "/memorize", label: "암기장" },
-  { href: "/sentences", label: "문장" },
 ];
 
 export function Nav() {

@@ -106,20 +106,20 @@ export async function saveSentence(input: { articleId: string; text: string }): 
     .select()
     .single();
   if (error) throw error;
-  revalidatePath("/sentences");
+  revalidatePath("/words");
   return data as SavedSentenceRow;
 }
 
 export async function removeSentence(id: string) {
   const { error } = await db().from("saved_sentences").delete().eq("id", id);
   if (error) throw error;
-  revalidatePath("/sentences");
+  revalidatePath("/words");
 }
 
 export async function updateSentenceNote(id: string, note: string) {
   const { error } = await db().from("saved_sentences").update({ note: note.trim() || null }).eq("id", id);
   if (error) throw error;
-  revalidatePath("/sentences");
+  revalidatePath("/words");
 }
 
 // Manual "fetch now" button on the home page (the daily cron does the same thing).
