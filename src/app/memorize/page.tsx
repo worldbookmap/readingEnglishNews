@@ -22,7 +22,7 @@ export default async function MemorizePage() {
   const studyWords = (study.data ?? []) as StudyWordRow[];
   const entries: MemoEntry[] = [
     ...fromArticles.values(),
-    ...studyWords.map((w) => ({ key: `s:${w.id}`, word: w.word, meaning: w.meaning, source: "study" as const, createdAt: w.created_at })),
+    ...studyWords.map((w) => ({ key: `${w.source}:${w.id}`, word: w.word, meaning: w.meaning, source: w.source, createdAt: w.created_at })),
   ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   const lastImported = studyWords.reduce<string | null>((m, w) => (!m || w.imported_at > m ? w.imported_at : m), null);

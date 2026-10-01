@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { refreshStudyWords } from "@/app/actions";
+import { STUDY_SOURCES, type StudySource } from "@/lib/studySources";
 
 export function RefreshStudyWordsButton({ lastImported }: { lastImported: string | null }) {
   const [pending, start] = useTransition();
@@ -10,8 +11,8 @@ export function RefreshStudyWordsButton({ lastImported }: { lastImported: string
   const status =
     message ??
     (lastImported
-      ? `study-colly · ${new Date(lastImported).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}`
-      : "study-colly를 아직 불러오지 않았어요");
+      ? `studylang · ${new Date(lastImported).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}`
+      : "studylang 단어를 아직 불러오지 않았어요");
 
   return (
     <div className="flex items-center gap-3">
@@ -24,7 +25,9 @@ export function RefreshStudyWordsButton({ lastImported }: { lastImported: string
             setMessage(null);
             try {
               const r = await refreshStudyWords();
-              setMessage(`study-colly에서 단어 ${r.imported}개를 불러왔어요`);
+              setMessage(
+                `${(Object.keys(r) as StudySource[]).map((s) => `${STUDY_SOURCES[s]} ${r[s]}개`).join(", ")}를 불러왔어요`,
+              );
             } catch {
               setMessage("불러오지 못했어요");
             }

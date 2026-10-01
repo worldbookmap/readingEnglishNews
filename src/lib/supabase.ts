@@ -2,6 +2,7 @@ import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Block } from "./extract";
 import type { SourceId } from "./sources";
+import type { StudySource } from "./studySources";
 
 export interface ArticleRow {
   id: string;
@@ -38,6 +39,7 @@ export interface SavedWordRow {
 }
 
 export interface StudyWordRow {
+  source: StudySource;
   id: string;
   word: string;
   meaning: string;

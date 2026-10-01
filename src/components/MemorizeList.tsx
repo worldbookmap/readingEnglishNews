@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { STUDY_SOURCES, type StudySource } from "@/lib/studySources";
 
 export interface MemoEntry {
   key: string;
   word: string;
   meaning: string | null;
-  source: "article" | "study";
+  source: "article" | StudySource;
   createdAt: string;
 }
 
@@ -15,7 +16,7 @@ type Filter = "all" | MemoEntry["source"];
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all", label: "전체" },
   { id: "article", label: "기사에서 저장" },
-  { id: "study", label: "study-colly" },
+  ...(Object.entries(STUDY_SOURCES) as [StudySource, string][]).map(([id, label]) => ({ id, label })),
 ];
 
 export function MemorizeList({ entries }: { entries: MemoEntry[] }) {
@@ -80,13 +81,14 @@ export function MemorizeList({ entries }: { entries: MemoEntry[] }) {
                 className="flex w-full items-baseline gap-2 px-4 py-3 text-left hover:bg-paper"
               >
                 <span className="shrink-0 font-serif text-lg font-semibold">{e.word}:</span>
-                {shown ? (
-                  <span className="whitespace-pre-line text-sm text-ink/80">{e.meaning ?? "(뜻 없음)"}</span>
-                ) : (
-                  <span className="tracking-widest text-accent" aria-label="뜻 보기">
-                    ★★★★★
-                  </span>
-                )}
+                {/* Hidden meanings stay faintly visible so a glance can confirm a guess. */}
+                <span
+                  className={`whitespace-pre-line text-sm transition-opacity duration-200 ${
+                    shown ? "text-ink/80" : "select-none text-ink opacity-10"
+                  }`}
+                >
+                  {e.meaning ?? "(뜻 없음)"}
+                </span>
               </button>
             </li>
           );
