@@ -5,6 +5,7 @@
 - **오늘의 기사**: 매일 아침 7시(KST)에 사이트별 인기 기사 5개를 불러와 Supabase에 저장합니다. 지난 날짜의 기사도 계속 남아 있습니다.
 - **리더**: 단어를 누르면 영영 뜻(Wiktionary)이 보이고, 단어장에 저장할 수 있습니다. 저장한 단어에는 문맥이 된 문장과 출처 기사가 함께 남습니다.
 - **문장 저장**: 단어를 누른 뒤 "이 문장 저장"을 누르거나, 원하는 부분을 드래그해서 저장합니다. 저장한 문장에는 메모(해석)를 달 수 있습니다.
+- **암기장**: 기사에서 저장한 단어와 [study-colly.json](https://github.com/worldbookmap/studylang/blob/main/data/study-colly.json)의 `type: "word"` 항목을 `단어: 뜻` 목록으로 보여줍니다. 뜻은 ★로 가려져 있고 누르면 보입니다. study-colly는 "새로 불러오기" 버튼을 눌러 GitHub에서 다시 가져옵니다.
 - **읽은 글**: 기사를 열기만 하면 **클릭함**, 기사 화면의 "읽었음으로 표시" 버튼을 누르면 **읽었음**으로 기록됩니다. 언제든 다시 눌러 취소할 수 있습니다.
 
 Stack: Next.js 16 (App Router) · Supabase (Postgres) · Vercel (hosting + Cron)

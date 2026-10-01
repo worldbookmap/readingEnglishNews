@@ -37,6 +37,14 @@ export interface SavedWordRow {
   created_at: string;
 }
 
+export interface StudyWordRow {
+  id: string;
+  word: string;
+  meaning: string;
+  created_at: string;
+  imported_at: string;
+}
+
 export interface SavedSentenceRow {
   id: string;
   text: string;

@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { AUTH_COOKIE, authToken } from "@/lib/auth";
 import { formatDefinition, lookup, normalizeWord } from "@/lib/dictionary";
 import { ingestPopular } from "@/lib/ingest";
+import { importStudyWords } from "@/lib/studylang";
 import type { Block } from "@/lib/extract";
 import { db, type SavedSentenceRow, type SavedWordRow } from "@/lib/supabase";
 
@@ -85,6 +86,7 @@ export async function saveWord(input: {
     .single();
   if (error) throw error;
   revalidatePath("/words");
+  revalidatePath("/memorize");
   return data as SavedWordRow;
 }
 
@@ -92,6 +94,7 @@ export async function removeWord(id: string) {
   const { error } = await db().from("saved_words").delete().eq("id", id);
   if (error) throw error;
   revalidatePath("/words");
+  revalidatePath("/memorize");
 }
 
 export async function saveSentence(input: { articleId: string; text: string }): Promise<SavedSentenceRow> {
@@ -124,4 +127,11 @@ export async function fetchNow() {
   const result = await ingestPopular();
   revalidatePath("/");
   return { saved: result.saved.length, skipped: result.skipped.filter((s) => s.reason !== "already saved").length };
+}
+
+// Manual "새로 불러오기" on the 암기장 page: re-import study-colly.json from GitHub.
+export async function refreshStudyWords() {
+  const result = await importStudyWords();
+  revalidatePath("/memorize");
+  return result;
 }
