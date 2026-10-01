@@ -1,6 +1,6 @@
 import "server-only";
 import { extractArticle } from "./extract";
-import { fetchHtml, popularFor, type SourceId } from "./sources";
+import { fetchHtml, popularFor, SOURCES, type PopularItem, type SourceId } from "./sources";
 import { db } from "./supabase";
 
 const TIME_ZONE = "Asia/Seoul";
@@ -20,7 +20,7 @@ export interface IngestResult {
 export async function ingestPopular(perSource = Number(process.env.ARTICLES_PER_SOURCE ?? 5)): Promise<IngestResult> {
   const popularOn = yesterday();
   const result: IngestResult = { popularOn, saved: [], skipped: [] };
-  const sources: SourceId[] = ["newyorker", "buzzfeed"];
+  const sources = SOURCES;
 
   const lists = await Promise.allSettled(sources.map((s) => popularFor(s, perSource)));
   const items = lists.flatMap((r, i) => {
@@ -44,27 +44,43 @@ export async function ingestPopular(perSource = Number(process.env.ARTICLES_PER_
         return;
       }
       try {
-        const a = extractArticle(await fetchHtml(item.url), item.url);
-        if (a.wordCount < 80) throw new Error(`too short (${a.wordCount} words)`);
-        const { error } = await db().from("articles").insert({
-          source: item.source,
-          url: item.url,
-          title: a.title,
-          byline: a.byline,
-          excerpt: a.excerpt,
-          image_url: a.imageUrl,
-          published_at: a.publishedAt,
-          blocks: a.blocks,
-          word_count: a.wordCount,
-          popular_on: popularOn,
-          popular_rank: item.rank,
-        });
+        const row = item.bodyFetchable ? await fetchedRow(item) : feedOnlyRow(item);
+        const { error } = await db()
+          .from("articles")
+          .insert({ ...row, source: item.source, url: item.url, popular_on: popularOn, popular_rank: item.rank });
         if (error) throw error;
-        result.saved.push({ source: item.source, rank: item.rank, url: item.url, title: a.title });
+        result.saved.push({ source: item.source, rank: item.rank, url: item.url, title: row.title });
       } catch (e) {
         result.skipped.push({ url: item.url, reason: e instanceof Error ? e.message : String(e) });
       }
     }),
   );
   return result;
+}
+
+async function fetchedRow(item: PopularItem) {
+  const a = extractArticle(await fetchHtml(item.url), item.url);
+  if (a.wordCount < 80) throw new Error(`too short (${a.wordCount} words)`);
+  return {
+    title: a.title,
+    byline: a.byline,
+    excerpt: a.excerpt,
+    image_url: a.imageUrl,
+    published_at: a.publishedAt,
+    blocks: a.blocks,
+    word_count: a.wordCount,
+  };
+}
+
+// The body is added later by pasting it in the reader (see setArticleBody).
+function feedOnlyRow(item: PopularItem) {
+  return {
+    title: item.title ?? item.url,
+    byline: item.byline ?? null,
+    excerpt: item.excerpt ?? null,
+    image_url: item.imageUrl ?? null,
+    published_at: item.publishedAt ?? null,
+    blocks: [],
+    word_count: 0,
+  };
 }

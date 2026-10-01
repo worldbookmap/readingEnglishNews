@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 import { ArticleCard } from "@/components/ArticleCard";
 import { FetchNowButton } from "@/components/FetchNowButton";
-import { SOURCE_LABELS, type SourceId } from "@/lib/sources";
+import { SOURCE_LABELS, SOURCES } from "@/lib/sources";
 import { ARTICLE_SUMMARY_COLUMNS, db, type ArticleSummary } from "@/lib/supabase";
 
 // Allows the "fetch now" server action (which scrapes ~10 pages) enough time on Vercel.
@@ -71,10 +71,9 @@ export default async function Home() {
 }
 
 function DayGroup({ articles }: { articles: ArticleSummary[] }) {
-  const sources: SourceId[] = ["newyorker", "buzzfeed"];
   return (
     <div className="grid gap-8 lg:grid-cols-2">
-      {sources.map((s) => {
+      {SOURCES.map((s) => {
         const list = articles.filter((a) => a.source === s);
         if (!list.length) return null;
         return (

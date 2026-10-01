@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { markOpened, removeSentence, removeWord, saveSentence, saveWord } from "@/app/actions";
+import { removeSentence, removeWord, saveSentence, saveWord } from "@/app/actions";
 import { formatDefinition, lookup, naverDictUrl, normalizeWord, type Definition } from "@/lib/dictionary";
 import type { Block } from "@/lib/extract";
 import type { SavedSentenceRow, SavedWordRow } from "@/lib/supabase";
@@ -30,14 +30,6 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
   const [selection, setSelection] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Record the visit once (StrictMode runs effects twice in dev).
-  const marked = useRef(false);
-  useEffect(() => {
-    if (marked.current) return;
-    marked.current = true;
-    markOpened(articleId).catch(() => {});
-  }, [articleId]);
 
   const flash = useCallback((msg: string) => {
     setToast(msg);

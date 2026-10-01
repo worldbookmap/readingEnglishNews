@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { AUTH_COOKIE, authToken } from "@/lib/auth";
 import { formatDefinition, lookup, normalizeWord } from "@/lib/dictionary";
 import { ingestPopular } from "@/lib/ingest";
+import type { Block } from "@/lib/extract";
 import { db, type SavedSentenceRow, type SavedWordRow } from "@/lib/supabase";
 
 export async function login(formData: FormData) {
@@ -39,6 +40,23 @@ export async function setRead(articleId: string, read: boolean) {
   if (error) throw error;
   revalidatePath("/");
   revalidatePath("/history");
+  revalidatePath(`/articles/${articleId}`);
+}
+
+// For sources whose body can't be fetched (NYT Modern Love): the reader copies the
+// article text from the original page and pastes it here. Each line becomes a paragraph;
+// short lines without closing punctuation are treated as section headings.
+export async function setArticleBody(articleId: string, text: string) {
+  const blocks: Block[] = text
+    .split(/\n+/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .map((line) => ({ type: line.length < 70 && !/[.!?"”’:)]$/.test(line) ? "h" : "p", text: line }));
+  const wordCount = blocks.reduce((n, b) => (b.type === "img" ? n : n + b.text.split(" ").length), 0);
+  if (wordCount < 30) throw new Error("본문이 너무 짧아요");
+  const { error } = await db().from("articles").update({ blocks, word_count: wordCount }).eq("id", articleId);
+  if (error) throw error;
+  revalidatePath("/");
   revalidatePath(`/articles/${articleId}`);
 }
 

@@ -2,21 +2,35 @@
 //
 // - BuzzFeed: https://www.buzzfeed.com/trending is server-rendered as a ranked list
 //   (cards numbered 1, 2, 3 ... from BuzzFeed's trending feed).
-// - The New Yorker: no public "most popular" list exists (the widget is empty in the
-//   server HTML and isn't loaded anywhere public), so we use the homepage's editorial
-//   order — the top stories the editors are featuring — as the popularity proxy.
+// - The New Yorker / Literary Hub: no public "most popular" list exists, so we use the
+//   homepage's editorial order — the top stories the editors are featuring — as the
+//   popularity proxy.
+// - NYT Modern Love: a weekly column, so "popular" = the newest essays from its RSS
+//   feed. nytimes.com blocks server-side article fetches (bot protection + paywall), so
+//   only the feed's title/summary is stored; the reader pastes the body in the app.
 
-export type SourceId = "newyorker" | "buzzfeed";
+export type SourceId = "newyorker" | "buzzfeed" | "modernlove" | "lithub";
+
+export const SOURCES: SourceId[] = ["newyorker", "buzzfeed", "modernlove", "lithub"];
 
 export interface PopularItem {
   source: SourceId;
   url: string;
   rank: number;
+  // Feed metadata, used when the article body can't be fetched (`bodyFetchable: false`).
+  title?: string;
+  excerpt?: string | null;
+  publishedAt?: string | null;
+  imageUrl?: string | null;
+  byline?: string | null;
+  bodyFetchable: boolean;
 }
 
 export const SOURCE_LABELS: Record<SourceId, string> = {
   newyorker: "The New Yorker",
   buzzfeed: "BuzzFeed",
+  modernlove: "NYT Modern Love",
+  lithub: "Literary Hub",
 };
 
 const UA =
@@ -48,7 +62,7 @@ export async function newYorkerPopular(limit: number): Promise<PopularItem[]> {
     .filter((p) => p.split("/").filter(Boolean).length >= 3 && !NEW_YORKER_SKIP.test(p));
   return uniqueInOrder(paths)
     .slice(0, limit)
-    .map((p, i) => ({ source: "newyorker", url: `https://www.newyorker.com${p}`, rank: i + 1 }));
+    .map((p, i) => ({ source: "newyorker", url: `https://www.newyorker.com${p}`, rank: i + 1, bodyFetchable: true }));
 }
 
 export async function buzzfeedPopular(limit: number): Promise<PopularItem[]> {
@@ -58,9 +72,66 @@ export async function buzzfeedPopular(limit: number): Promise<PopularItem[]> {
     .filter((p) => !p.startsWith("/shopping/") && !p.startsWith("/quizzes"));
   return uniqueInOrder(paths)
     .slice(0, limit)
-    .map((p, i) => ({ source: "buzzfeed", url: `https://www.buzzfeed.com${p}`, rank: i + 1 }));
+    .map((p, i) => ({ source: "buzzfeed", url: `https://www.buzzfeed.com${p}`, rank: i + 1, bodyFetchable: true }));
+}
+
+// Single-segment slugs are articles (https://lithub.com/some-article-slug/); sections,
+// authors and tags have short or multi-segment paths.
+export async function lithubPopular(limit: number): Promise<PopularItem[]> {
+  const html = await fetchHtml("https://lithub.com/");
+  const urls = [...html.matchAll(/href="(https:\/\/lithub\.com\/[a-z0-9-]{15,}\/)"/g)].map((m) => m[1]);
+  return uniqueInOrder(urls)
+    .slice(0, limit)
+    .map((url, i) => ({ source: "lithub", url, rank: i + 1, bodyFetchable: true }));
+}
+
+const MODERN_LOVE_FEED = "https://www.nytimes.com/svc/collections/v1/publish/www.nytimes.com/column/modern-love/rss.xml";
+
+const decodeXml = (s: string) =>
+  s
+    .replace(/^<!\[CDATA\[|\]\]>$/g, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+    .trim();
+
+function xmlTag(item: string, tag: string): string | null {
+  const m = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`).exec(item);
+  return m ? decodeXml(m[1]) : null;
+}
+
+export async function modernLovePopular(limit: number): Promise<PopularItem[]> {
+  const xml = await fetchHtml(MODERN_LOVE_FEED);
+  const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].map((m) => m[1]);
+  return items
+    .map((item) => {
+      const pubDate = xmlTag(item, "pubDate");
+      return {
+        url: xmlTag(item, "link") ?? "",
+        title: xmlTag(item, "title") ?? undefined,
+        excerpt: xmlTag(item, "description"),
+        byline: xmlTag(item, "dc:creator"),
+        publishedAt: pubDate && !Number.isNaN(Date.parse(pubDate)) ? new Date(pubDate).toISOString() : null,
+        imageUrl: /<media:content[^>]*url="([^"]+)"/.exec(item)?.[1]?.replace(/&amp;/g, "&") ?? null,
+      };
+    })
+    // Skip the podcast episodes that share the feed; keep the written essays.
+    .filter((it) => it.url.startsWith("https://www.nytimes.com/") && !it.url.includes("/podcasts/"))
+    .slice(0, limit)
+    .map((it, i) => ({ ...it, source: "modernlove", rank: i + 1, bodyFetchable: false }));
 }
 
 export async function popularFor(source: SourceId, limit: number): Promise<PopularItem[]> {
-  return source === "newyorker" ? newYorkerPopular(limit) : buzzfeedPopular(limit);
+  switch (source) {
+    case "newyorker":
+      return newYorkerPopular(limit);
+    case "buzzfeed":
+      return buzzfeedPopular(limit);
+    case "modernlove":
+      return modernLovePopular(limit);
+    case "lithub":
+      return lithubPopular(limit);
+  }
 }

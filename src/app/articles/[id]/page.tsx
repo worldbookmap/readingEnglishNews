@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { formatDate, readingMinutes } from "@/components/ArticleCard";
+import { MarkOpened } from "@/components/MarkOpened";
+import { PasteBody } from "@/components/PasteBody";
 import { ReadToggle } from "@/components/ReadToggle";
 import { Reader } from "@/components/Reader";
 import { SOURCE_LABELS } from "@/lib/sources";
@@ -20,6 +22,7 @@ export default async function ArticlePage({ params }: PageProps<"/articles/[id]"
 
   return (
     <article className="mx-auto max-w-2xl">
+      <MarkOpened articleId={a.id} />
       <header className="mb-8 border-b border-line pb-6">
         <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
           <span className="font-semibold uppercase tracking-wide text-accent">{SOURCE_LABELS[a.source]}</span>
@@ -33,7 +36,7 @@ export default async function ArticlePage({ params }: PageProps<"/articles/[id]"
           )}
           <span>·</span>
           <span>
-            {a.word_count.toLocaleString()} words, {readingMinutes(a.word_count)}분
+            {a.word_count ? `${a.word_count.toLocaleString()} words, ${readingMinutes(a.word_count)}분` : "본문 없음"}
           </span>
         </div>
         <h1 className="font-serif text-3xl leading-tight font-semibold tracking-tight sm:text-4xl">{a.title}</h1>
@@ -45,15 +48,21 @@ export default async function ArticlePage({ params }: PageProps<"/articles/[id]"
           <ReadToggle articleId={a.id} readAt={a.read_at} />
         </div>
       </header>
-      <Reader
-        articleId={a.id}
-        blocks={a.blocks}
-        initialWords={(words.data ?? []) as SavedWordRow[]}
-        initialSentences={(sentences.data ?? []) as SavedSentenceRow[]}
-      />
-      <div className="mt-10">
-        <ReadToggle articleId={a.id} readAt={a.read_at} size="lg" />
-      </div>
+      {a.blocks.length ? (
+        <>
+          <Reader
+            articleId={a.id}
+            blocks={a.blocks}
+            initialWords={(words.data ?? []) as SavedWordRow[]}
+            initialSentences={(sentences.data ?? []) as SavedSentenceRow[]}
+          />
+          <div className="mt-10">
+            <ReadToggle articleId={a.id} readAt={a.read_at} size="lg" />
+          </div>
+        </>
+      ) : (
+        <PasteBody articleId={a.id} url={a.url} excerpt={a.excerpt} />
+      )}
     </article>
   );
 }

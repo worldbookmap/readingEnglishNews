@@ -31,7 +31,7 @@ function meta(doc: Document, ...names: string[]): string | null {
 }
 
 // Text that shows up inside article bodies but isn't part of the story.
-const JUNK = /^(advertisement|comments|sign up.*|subscribe.*|read more.*|related:.*|recommended.*|newsletter.*|view this (photo|video) on .*)$/i;
+const JUNK = /^(advertisement|article continues after advertisement|comments|sign up.*|subscribe.*|read more.*|related:.*|recommended.*|newsletter.*|view this (photo|video) on .*)$/i;
 // Photo credits like "Kevin Dietsch / Getty Images" or "Margo Martin/x.com".
 const CREDIT = /(\/|\bvia\b|getty|images|\.com\b|instagram|tiktok|twitter|reddit|youtube|netflix|courtesy)/i;
 const isCredit = (t: string) => t.length < 70 && !/[.!?"”]$/.test(t) && CREDIT.test(t);
@@ -102,7 +102,8 @@ export function extractArticle(html: string, url: string): ExtractedArticle {
 
   return {
     title: clean(parsed.title) || clean(meta(document, "og:title")) || url,
-    byline: clean(parsed.byline) || null,
+    // Lithub appends the date: "Ryan Chapman September 30, 2026".
+    byline: clean(parsed.byline).replace(/\s+(January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2}, \d{4}$/, "") || null,
     excerpt: clean(parsed.excerpt) || null,
     siteName: clean(parsed.siteName) || null,
     imageUrl: ogImage,
