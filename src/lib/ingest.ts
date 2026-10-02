@@ -37,24 +37,48 @@ export async function ingestPopular(perSource = Number(process.env.ARTICLES_PER_
   if (error) throw error;
   const known = new Set((existing ?? []).map((r) => r.url as string));
 
-  await Promise.all(
+  const fetched = await Promise.all(
     items.map(async (item) => {
       if (known.has(item.url)) {
         result.skipped.push({ url: item.url, reason: "already saved" });
-        return;
+        return null;
       }
       try {
-        const row = item.bodyFetchable ? await fetchedRow(item) : feedOnlyRow(item);
-        const { error } = await db()
-          .from("articles")
-          .insert({ ...row, source: item.source, url: item.url, popular_on: popularOn, popular_rank: item.rank });
-        if (error) throw error;
-        result.saved.push({ source: item.source, rank: item.rank, url: item.url, title: row.title });
+        return { item, row: item.bodyFetchable ? await fetchedRow(item) : feedOnlyRow(item) };
       } catch (e) {
         result.skipped.push({ url: item.url, reason: e instanceof Error ? e.message : String(e) });
+        return null;
       }
     }),
   );
+
+  // A second fetch on the same day continues numbering after the articles already
+  // saved for that day, so ranks within (popular_on, source) never collide.
+  const { data: sameDay, error: rankError } = await db()
+    .from("articles")
+    .select("source, popular_rank")
+    .eq("popular_on", popularOn);
+  if (rankError) throw rankError;
+  const nextRank = new Map<string, number>();
+  for (const r of sameDay ?? []) {
+    nextRank.set(r.source, Math.max(nextRank.get(r.source) ?? 0, r.popular_rank as number));
+  }
+
+  const toSave = fetched
+    .filter((f) => f !== null)
+    .sort((a, b) => a.item.source.localeCompare(b.item.source) || a.item.rank - b.item.rank);
+  for (const { item, row } of toSave) {
+    const rank = (nextRank.get(item.source) ?? 0) + 1;
+    const { error } = await db()
+      .from("articles")
+      .insert({ ...row, source: item.source, url: item.url, popular_on: popularOn, popular_rank: rank });
+    if (error) {
+      result.skipped.push({ url: item.url, reason: error.message });
+      continue;
+    }
+    nextRank.set(item.source, rank);
+    result.saved.push({ source: item.source, rank, url: item.url, title: row.title });
+  }
   return result;
 }
 
