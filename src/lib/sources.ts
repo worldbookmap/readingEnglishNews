@@ -11,12 +11,14 @@
 // - Wait But Why: posts are rare, so the newest post from the RSS feed comes first,
 //   followed by the sidebar's "Popular Posts" list (in its order).
 
-export type SourceId = "newyorker" | "buzzfeed" | "modernlove" | "lithub" | "waitbutwhy";
+export type FeedSourceId = "newyorker" | "buzzfeed" | "modernlove" | "lithub" | "waitbutwhy";
+// "custom": an article the reader added by URL (not part of the daily fetch).
+export type SourceId = FeedSourceId | "custom";
 
-export const SOURCES: SourceId[] = ["newyorker", "buzzfeed", "modernlove", "lithub", "waitbutwhy"];
+export const SOURCES: FeedSourceId[] = ["newyorker", "buzzfeed", "modernlove", "lithub", "waitbutwhy"];
 
 export interface PopularItem {
-  source: SourceId;
+  source: FeedSourceId;
   url: string;
   rank: number;
   // Feed metadata, used when the article body can't be fetched (`bodyFetchable: false`).
@@ -34,6 +36,7 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   modernlove: "NYT Modern Love",
   lithub: "Literary Hub",
   waitbutwhy: "Wait But Why",
+  custom: "직접 추가",
 };
 
 const UA =
@@ -139,7 +142,7 @@ export async function modernLovePopular(limit: number): Promise<PopularItem[]> {
     .map((it, i) => ({ ...it, source: "modernlove", rank: i + 1, bodyFetchable: false }));
 }
 
-export async function popularFor(source: SourceId, limit: number): Promise<PopularItem[]> {
+export async function popularFor(source: FeedSourceId, limit: number): Promise<PopularItem[]> {
   switch (source) {
     case "newyorker":
       return newYorkerPopular(limit);

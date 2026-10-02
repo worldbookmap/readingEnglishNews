@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { AUTH_COOKIE, authToken } from "@/lib/auth";
 import { formatDefinition, lookup, normalizePhrase } from "@/lib/dictionary";
-import { ingestPopular } from "@/lib/ingest";
+import { ingestPopular, ingestUrl } from "@/lib/ingest";
 import { importStudyWords } from "@/lib/studylang";
 import type { Block } from "@/lib/extract";
 import { db, type SavedSentenceRow, type SavedWordRow } from "@/lib/supabase";
@@ -42,6 +42,31 @@ export async function setRead(articleId: string, read: boolean) {
   revalidatePath("/");
   revalidatePath("/history");
   revalidatePath(`/articles/${articleId}`);
+}
+
+export async function setReread(articleId: string, reread: boolean) {
+  const { error } = await db()
+    .from("articles")
+    .update({ reread_at: reread ? new Date().toISOString() : null })
+    .eq("id", articleId);
+  if (error) throw error;
+  revalidatePath("/history");
+  revalidatePath(`/articles/${articleId}`);
+}
+
+// "기사 추가" on the home page: save one article by URL and open it.
+export async function addArticle(formData: FormData) {
+  let url: URL;
+  try {
+    url = new URL(String(formData.get("url") ?? "").trim());
+  } catch {
+    redirect("/?addError=1");
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") redirect("/?addError=1");
+  url.hash = "";
+  const id = await ingestUrl(url.toString());
+  revalidatePath("/");
+  redirect(`/articles/${id}`);
 }
 
 // For sources whose body can't be fetched (NYT Modern Love): the reader copies the

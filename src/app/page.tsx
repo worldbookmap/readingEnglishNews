@@ -1,4 +1,5 @@
 import { connection } from "next/server";
+import { AddArticleForm } from "@/components/AddArticleForm";
 import { ArticleCard } from "@/components/ArticleCard";
 import { FetchNowButton } from "@/components/FetchNowButton";
 import { SOURCE_LABELS, SOURCES } from "@/lib/sources";
@@ -13,16 +14,22 @@ function dayLabel(date: string) {
   );
 }
 
-export default async function Home() {
+export default async function Home({ searchParams }: PageProps<"/">) {
   await connection();
-  const { data, error } = await db()
-    .from("articles")
-    .select(ARTICLE_SUMMARY_COLUMNS)
-    .order("popular_on", { ascending: false })
-    .order("popular_rank", { ascending: true })
-    .limit(200);
-  if (error) throw error;
-  const articles = (data ?? []) as ArticleSummary[];
+  const [popularRes, addedRes] = await Promise.all([
+    db()
+      .from("articles")
+      .select(ARTICLE_SUMMARY_COLUMNS)
+      .neq("source", "custom")
+      .order("popular_on", { ascending: false })
+      .order("popular_rank", { ascending: true })
+      .limit(200),
+    db().from("articles").select(ARTICLE_SUMMARY_COLUMNS).eq("source", "custom").order("fetched_at", { ascending: false }).limit(50),
+  ]);
+  if (popularRes.error) throw popularRes.error;
+  if (addedRes.error) throw addedRes.error;
+  const articles = (popularRes.data ?? []) as ArticleSummary[];
+  const added = (addedRes.data ?? []) as ArticleSummary[];
 
   const days = [...new Set(articles.map((a) => a.popular_on))];
   const [latest, ...older] = days;
@@ -37,6 +44,8 @@ export default async function Home() {
         <FetchNowButton />
       </div>
 
+      <AddArticleForm error={(await searchParams).addError === "1"} />
+
       {!latest && (
         <p className="rounded-xl border border-dashed border-line p-8 text-center text-muted">
           매일 아침 7시에 자동으로 불러와요. 지금 바로 받으려면 &lsquo;지금 불러오기&rsquo;를 눌러주세요.
@@ -44,6 +53,17 @@ export default async function Home() {
       )}
 
       {latest && <DayGroup articles={articles.filter((a) => a.popular_on === latest)} />}
+
+      {added.length > 0 && (
+        <section className="mt-14">
+          <h2 className="mb-4 font-serif text-xl font-semibold">직접 추가한 기사</h2>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {added.map((a) => (
+              <ArticleCard key={a.id} article={a} showRank={false} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {older.length > 0 && (
         <section className="mt-14">

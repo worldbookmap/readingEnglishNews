@@ -1,6 +1,6 @@
 import "server-only";
 import { extractArticle } from "./extract";
-import { fetchHtml, popularFor, SOURCES, type PopularItem, type SourceId } from "./sources";
+import { fetchHtml, popularFor, SOURCES, type FeedSourceId, type PopularItem } from "./sources";
 import { db } from "./supabase";
 
 const TIME_ZONE = "Asia/Seoul";
@@ -11,9 +11,11 @@ export function yesterday(now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE }).format(d);
 }
 
+const today = (now = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE }).format(now);
+
 export interface IngestResult {
   popularOn: string;
-  saved: { source: SourceId; rank: number; url: string; title: string }[];
+  saved: { source: FeedSourceId; rank: number; url: string; title: string }[];
   skipped: { url: string; reason: string }[];
 }
 
@@ -44,7 +46,7 @@ export async function ingestPopular(perSource = Number(process.env.ARTICLES_PER_
         return null;
       }
       try {
-        return { item, row: item.bodyFetchable ? await fetchedRow(item) : feedOnlyRow(item) };
+        return { item, row: item.bodyFetchable ? await fetchedRow(item.url) : feedOnlyRow(item) };
       } catch (e) {
         result.skipped.push({ url: item.url, reason: e instanceof Error ? e.message : String(e) });
         return null;
@@ -82,8 +84,41 @@ export async function ingestPopular(perSource = Number(process.env.ARTICLES_PER_
   return result;
 }
 
-async function fetchedRow(item: PopularItem) {
-  const a = extractArticle(await fetchHtml(item.url), item.url);
+// An article the reader added by URL. Returns the article id (the existing one if the
+// URL was already saved). When the body can't be fetched, it's saved without one and
+// the reader pastes it in, like NYT Modern Love.
+export async function ingestUrl(url: string): Promise<string> {
+  const { data: existing, error } = await db().from("articles").select("id").eq("url", url).maybeSingle();
+  if (error) throw error;
+  if (existing) return existing.id as string;
+
+  let row;
+  try {
+    row = await fetchedRow(url);
+  } catch {
+    row = feedOnlyRow({ url });
+  }
+
+  const addedOn = today();
+  const { data: sameDay, error: rankError } = await db()
+    .from("articles")
+    .select("popular_rank")
+    .eq("source", "custom")
+    .eq("popular_on", addedOn)
+    .order("popular_rank", { ascending: false })
+    .limit(1);
+  if (rankError) throw rankError;
+  const { data, error: insertError } = await db()
+    .from("articles")
+    .insert({ ...row, source: "custom", url, popular_on: addedOn, popular_rank: (sameDay?.[0]?.popular_rank ?? 0) + 1 })
+    .select("id")
+    .single();
+  if (insertError) throw insertError;
+  return data.id as string;
+}
+
+async function fetchedRow(url: string) {
+  const a = extractArticle(await fetchHtml(url), url);
   if (a.wordCount < 80) throw new Error(`too short (${a.wordCount} words)`);
   return {
     title: a.title,
@@ -97,7 +132,7 @@ async function fetchedRow(item: PopularItem) {
 }
 
 // The body is added later by pasting it in the reader (see setArticleBody).
-function feedOnlyRow(item: PopularItem) {
+function feedOnlyRow(item: Omit<PopularItem, "source" | "rank" | "bodyFetchable">) {
   return {
     title: item.title ?? item.url,
     byline: item.byline ?? null,

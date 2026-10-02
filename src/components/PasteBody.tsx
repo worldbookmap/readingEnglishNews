@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { setArticleBody } from "@/app/actions";
 
-// Shown for articles whose body the server can't fetch (NYT Modern Love).
+// Shown for articles whose body the server can't fetch (NYT Modern Love, or an added
+// article from a site that blocks it).
 export function PasteBody({ articleId, url, excerpt }: { articleId: string; url: string; excerpt: string | null }) {
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +18,7 @@ export function PasteBody({ articleId, url, excerpt }: { articleId: string; url:
       <div className="rounded-2xl border border-line bg-card p-5">
         <h2 className="font-semibold">본문 붙여넣기</h2>
         <p className="mt-1 text-sm text-muted">
-          뉴욕타임스는 외부에서 본문을 가져올 수 없어요.{" "}
+          이 사이트는 외부에서 본문을 가져올 수 없어요.{" "}
           <a href={url} target="_blank" rel="noreferrer" className="text-accent underline underline-offset-4">
             원문
           </a>
