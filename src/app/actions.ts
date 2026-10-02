@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { AUTH_COOKIE, authToken } from "@/lib/auth";
-import { formatDefinition, lookup, normalizeWord } from "@/lib/dictionary";
+import { formatDefinition, lookup, normalizePhrase } from "@/lib/dictionary";
 import { ingestPopular } from "@/lib/ingest";
 import { importStudyWords } from "@/lib/studylang";
 import type { Block } from "@/lib/extract";
@@ -68,7 +68,7 @@ export async function saveWord(input: {
   definition?: string | null;
   phonetic?: string | null;
 }): Promise<SavedWordRow> {
-  const word = normalizeWord(input.word);
+  const word = normalizePhrase(input.word);
   if (!word) throw new Error("empty word");
   let { definition = null, phonetic = null } = input;
   if (definition == null) {

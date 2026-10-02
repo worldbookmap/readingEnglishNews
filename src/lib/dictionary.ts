@@ -1,6 +1,9 @@
+import { splitWords } from "./tokenize";
+
 // English definitions for the reader popover and the word list. Wiktionary's REST API
 // is the primary source (fast, CORS-enabled); dictionaryapi.dev is a fallback that
-// also provides phonetics. Both are free and keyless.
+// also provides phonetics. Both are free and keyless. Multi-word expressions
+// ("give up", "look forward to") have their own Wiktionary entries.
 
 export interface Definition {
   phonetic: string | null;
@@ -43,7 +46,7 @@ async function getJson<T>(url: string): Promise<T | null> {
 
 async function fromWiktionary(word: string): Promise<Definition | null> {
   const data = await getJson<{ en?: WiktionaryEntry[] }>(
-    `https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word)}`,
+    `https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word.replace(/ /g, "_"))}`,
   );
   const meanings = (data?.en ?? [])
     .map((e) => ({
@@ -86,4 +89,14 @@ export function normalizeWord(raw: string): string {
     .replace(/[’‘]/g, "'")
     .replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, "")
     .replace(/'s$/, "");
+}
+
+// A saved entry: one word, or a phrase like "look forward to". Tokenizes the same way
+// as the reader, so a saved phrase can be matched back against the text.
+export function normalizePhrase(raw: string): string {
+  return splitWords(raw)
+    .filter((t) => t.word)
+    .map((t) => normalizeWord(t.text))
+    .filter(Boolean)
+    .join(" ");
 }

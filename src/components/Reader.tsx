@@ -2,10 +2,10 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { removeSentence, removeWord, saveSentence, saveWord } from "@/app/actions";
-import { formatDefinition, lookup, naverDictUrl, normalizeWord, type Definition } from "@/lib/dictionary";
+import { formatDefinition, lookup, naverDictUrl, normalizePhrase, normalizeWord, type Definition } from "@/lib/dictionary";
 import type { Block } from "@/lib/extract";
 import type { SavedSentenceRow, SavedWordRow } from "@/lib/supabase";
-import { splitSentences, splitWords } from "@/lib/tokenize";
+import { splitSentences, splitWords, type Token } from "@/lib/tokenize";
 
 interface Props {
   articleId: string;
@@ -15,11 +15,18 @@ interface Props {
 }
 
 interface Active {
-  word: string; // normalized
-  raw: string;
+  word: string; // normalized; a phrase ("look forward to") when several words are selected
   sentence: string;
-  el: HTMLElement;
+  els: HTMLElement[]; // the word spans it covers
 }
+
+interface Selection {
+  text: string;
+  sentence: string;
+  phrase: { word: string; els: HTMLElement[] } | null; // set when 2–6 words in one sentence are selected
+}
+
+const MAX_PHRASE_WORDS = 6;
 
 const normSentence = (s: string) => s.replace(/\s+/g, " ").trim();
 
@@ -27,7 +34,7 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
   const [words, setWords] = useState(() => new Map(initialWords.map((w) => [w.word, w])));
   const [sentences, setSentences] = useState(() => new Map(initialSentences.map((s) => [s.text, s])));
   const [active, setActive] = useState<Active | null>(null);
-  const [selection, setSelection] = useState<string | null>(null);
+  const [selection, setSelection] = useState<Selection | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -40,21 +47,24 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
   // re-render thousands of word spans.
   useEffect(() => {
     if (!active) return;
-    const sentenceEl = active.el.closest(".s");
-    active.el.classList.add("active");
+    const sentenceEl = active.els[0]?.closest(".s");
+    active.els.forEach((el) => el.classList.add("active"));
     sentenceEl?.classList.add("active");
     return () => {
-      active.el.classList.remove("active");
+      active.els.forEach((el) => el.classList.remove("active"));
       sentenceEl?.classList.remove("active");
     };
   }, [active]);
 
-  // Track text selection (drag to select a passage → save as sentence).
+  // Track text selection (drag to select a passage → save as sentence, or a few words
+  // → look up and save as a phrase).
   useEffect(() => {
     const onChange = () => {
       const sel = window.getSelection();
       const inside = sel?.anchorNode && containerRef.current?.contains(sel.anchorNode);
       let text = "";
+      let phrase: Selection["phrase"] = null;
+      let sentence = "";
       if (sel && !sel.isCollapsed && sel.rangeCount) {
         // Snap a selection that starts/ends mid-word ("…a millio") out to whole words.
         const range = sel.getRangeAt(0).cloneRange();
@@ -64,8 +74,16 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
         if (startWord) range.setStartBefore(startWord);
         if (endWord) range.setEndAfter(endWord);
         text = normSentence(range.toString());
+        const sentenceEl = startWord?.closest(".s");
+        sentence = normSentence(sentenceEl?.textContent ?? text);
+        if (sentenceEl && sentenceEl === endWord?.closest(".s")) {
+          const all = [...sentenceEl.querySelectorAll<HTMLElement>(".w")];
+          const els = all.slice(all.indexOf(startWord as HTMLElement), all.indexOf(endWord as HTMLElement) + 1);
+          const word = normalizePhrase(els.map((el) => el.textContent).join(" "));
+          if (els.length >= 2 && els.length <= MAX_PHRASE_WORDS && word.includes(" ")) phrase = { word, els };
+        }
       }
-      setSelection(inside && text.length > 2 && text.includes(" ") ? text : null);
+      setSelection(inside && text.length > 2 && text.includes(" ") ? { text, sentence, phrase } : null);
     };
     document.addEventListener("selectionchange", onChange);
     return () => document.removeEventListener("selectionchange", onChange);
@@ -89,7 +107,7 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
     const word = normalizeWord(raw);
     if (!word) return;
     const sentence = normSentence(el.closest(".s")?.textContent ?? raw);
-    setActive((prev) => (prev?.el === el ? null : { word, raw, sentence, el }));
+    setActive((prev) => (prev?.els.length === 1 && prev.els[0] === el ? null : { word, sentence, els: [el] }));
   };
 
   const onError = () => flash("저장하지 못했어요. 다시 시도해주세요");
@@ -122,13 +140,21 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
 
       {selection && !active && (
         <SelectionBar
-          text={selection}
-          saved={sentences.has(selection)}
+          text={selection.text}
+          saved={sentences.has(selection.text)}
           onError={onError}
           onSave={async () => {
-            await doSaveSentence(selection);
+            await doSaveSentence(selection.text);
             window.getSelection()?.removeAllRanges();
           }}
+          onOpenPhrase={
+            selection.phrase &&
+            (() => {
+              const { word, els } = selection.phrase!;
+              setActive({ word, sentence: selection.sentence, els });
+              window.getSelection()?.removeAllRanges();
+            })
+          }
         />
       )}
 
@@ -160,7 +186,7 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
               next.delete(active.word);
               return next;
             });
-            flash("단어 저장을 취소했어요");
+            flash(active.word.includes(" ") ? "표현 저장을 취소했어요" : "단어 저장을 취소했어요");
           }}
           onToggleSentence={() =>
             sentences.has(active.sentence) ? doRemoveSentence(active.sentence) : doSaveSentence(active.sentence)
@@ -195,6 +221,10 @@ const Body = memo(function Body({
       ),
     [blocks],
   );
+  const phrases = useMemo(
+    () => [...savedWords.keys()].filter((w) => w.includes(" ")).map((w) => w.split(" ")),
+    [savedWords],
+  );
 
   return (
     <>
@@ -208,22 +238,25 @@ const Body = memo(function Body({
             </figure>
           );
         }
-        const content = b.sentences.map((s, si) => (
-          <span key={si}>
-            <span className={`s${savedSentences.has(normSentence(s.text)) ? " saved" : ""}`}>
-              {s.tokens.map((t, ti) =>
-                t.word ? (
-                  <span key={ti} className={`w${savedWords.has(normalizeWord(t.text)) ? " saved" : ""}`}>
-                    {t.text}
-                  </span>
-                ) : (
-                  t.text
-                ),
-              )}
+        const content = b.sentences.map((s, si) => {
+          const inPhrase = phraseTokens(s.tokens, phrases);
+          return (
+            <span key={si}>
+              <span className={`s${savedSentences.has(normSentence(s.text)) ? " saved" : ""}`}>
+                {s.tokens.map((t, ti) =>
+                  t.word ? (
+                    <span key={ti} className={`w${inPhrase.has(ti) || savedWords.has(normalizeWord(t.text)) ? " saved" : ""}`}>
+                      {t.text}
+                    </span>
+                  ) : (
+                    t.text
+                  ),
+                )}
+              </span>
+              {si < b.sentences.length - 1 ? " " : null}
             </span>
-            {si < b.sentences.length - 1 ? " " : null}
-          </span>
-        ));
+          );
+        });
         if (b.type === "h") return <h2 key={i} className="mt-10 mb-4 text-[1.35rem] leading-snug font-semibold">{content}</h2>;
         if (b.type === "quote")
           return (
@@ -247,6 +280,20 @@ const Body = memo(function Body({
     </>
   );
 });
+
+// Indexes of word tokens that belong to an occurrence of a saved phrase.
+function phraseTokens(tokens: Token[], phrases: string[][]): Set<number> {
+  const out = new Set<number>();
+  if (!phrases.length) return out;
+  const idx = tokens.flatMap((t, i) => (t.word ? [i] : []));
+  const norm = idx.map((i) => normalizeWord(tokens[i].text));
+  for (const p of phrases) {
+    for (let start = 0; start + p.length <= norm.length; start++) {
+      if (p.every((w, k) => norm[start + k] === w)) p.forEach((_, k) => out.add(idx[start + k]));
+    }
+  }
+  return out;
+}
 
 function WordPopover({
   active,
@@ -279,9 +326,10 @@ function WordPopover({
   }, [active.word]);
 
   const run = (fn: () => Promise<void>) => start(() => fn().catch(onError));
+  const kind = active.word.includes(" ") ? "표현" : "단어";
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-3 sm:pb-6" role="dialog" aria-label={`단어 ${active.word}`}>
+    <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-3 sm:pb-6" role="dialog" aria-label={`${kind} ${active.word}`}>
       <div className="w-full max-w-xl rounded-2xl border border-line bg-card p-5 shadow-2xl">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -313,7 +361,7 @@ function WordPopover({
         <div className="mt-4 flex flex-wrap gap-2">
           {savedWord ? (
             <button type="button" disabled={pending} onClick={() => run(onRemoveWord)} className={btn("secondary")}>
-              ✓ 단어 저장됨 · 취소
+              ✓ {kind} 저장됨 · 취소
             </button>
           ) : (
             <button
@@ -322,7 +370,7 @@ function WordPopover({
               onClick={() => run(() => onSaveWord(def ?? null))}
               className={btn("primary")}
             >
-              단어 저장
+              {kind} 저장
             </button>
           )}
           <button type="button" disabled={pending} onClick={() => run(onToggleSentence)} className={btn("secondary")}>
@@ -341,11 +389,13 @@ function SelectionBar({
   text,
   saved,
   onSave,
+  onOpenPhrase,
   onError,
 }: {
   text: string;
   saved: boolean;
   onSave: () => Promise<void>;
+  onOpenPhrase: (() => void) | null;
   onError: () => void;
 }) {
   const [pending, start] = useTransition();
@@ -353,15 +403,20 @@ function SelectionBar({
     <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-3 sm:pb-6">
       <div className="flex w-full max-w-xl items-center gap-3 rounded-2xl border border-line bg-card p-3 pl-4 shadow-2xl">
         <p className="line-clamp-2 flex-1 font-serif text-sm text-ink/80">{text}</p>
+        {onOpenPhrase && (
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={onOpenPhrase} className={btn("primary")}>
+            표현 뜻 보기
+          </button>
+        )}
         <button
           type="button"
           // Keep the selection alive while pressing the button.
           onMouseDown={(e) => e.preventDefault()}
           disabled={pending || saved}
           onClick={() => start(() => onSave().catch(onError))}
-          className={btn("primary")}
+          className={btn(onOpenPhrase ? "secondary" : "primary")}
         >
-          {saved ? "저장됨" : pending ? "저장 중…" : "선택한 문장 저장"}
+          {saved ? "저장됨" : pending ? "저장 중…" : onOpenPhrase ? "문장으로 저장" : "선택한 문장 저장"}
         </button>
       </div>
     </div>
@@ -372,7 +427,7 @@ function SavedSummary({ words, sentences }: { words: SavedWordRow[]; sentences: 
   if (!words.length && !sentences.length) {
     return (
       <p className="mt-16 rounded-xl border border-dashed border-line p-5 text-center text-sm text-muted">
-        단어를 누르면 뜻을 보고 단어장에 저장할 수 있어요. 문장은 단어를 누른 뒤 &lsquo;이 문장 저장&rsquo;을 누르거나, 드래그해서 선택하면 저장할 수 있어요.
+        단어를 누르면 뜻을 보고 단어장에 저장할 수 있어요. 구동사처럼 여러 단어로 된 표현은 드래그해서 선택한 뒤 &lsquo;표현 뜻 보기&rsquo;를 누르세요. 문장은 단어를 누른 뒤 &lsquo;이 문장 저장&rsquo;을 누르거나, 드래그해서 선택하면 저장할 수 있어요.
       </p>
     );
   }
