@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { removeSentence, removeWord, saveSentence, saveWord } from "@/app/actions";
+import { removeSentence, removeWord, saveSentence, saveWord, updateWordNote } from "@/app/actions";
 import { formatDefinition, lookup, naverDictUrl, normalizePhrase, normalizeWord, type Definition } from "@/lib/dictionary";
 import type { Block } from "@/lib/extract";
 import type { SavedSentenceRow, SavedWordRow } from "@/lib/supabase";
@@ -166,16 +166,24 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
           sentenceSaved={sentences.has(active.sentence)}
           onClose={() => setActive(null)}
           onError={onError}
-          onSaveWord={async (definition) => {
+          onSaveWord={async (definition, note) => {
             const row = await saveWord({
               articleId,
               word: active.word,
               context: active.sentence,
               definition: formatDefinition(definition),
               phonetic: definition?.phonetic ?? null,
+              note,
             });
             setWords((m) => new Map(m).set(row.word, row));
             flash(`'${row.word}' 단어장에 저장했어요`);
+          }}
+          onUpdateNote={async (note) => {
+            const row = words.get(active.word);
+            if (!row) return;
+            const updated = await updateWordNote(row.id, note);
+            setWords((m) => new Map(m).set(updated.word, updated));
+            flash("메모를 저장했어요");
           }}
           onRemoveWord={async () => {
             const row = words.get(active.word);
@@ -301,6 +309,7 @@ function WordPopover({
   sentenceSaved,
   onClose,
   onSaveWord,
+  onUpdateNote,
   onRemoveWord,
   onToggleSentence,
   onError,
@@ -309,13 +318,16 @@ function WordPopover({
   savedWord: SavedWordRow | null;
   sentenceSaved: boolean;
   onClose: () => void;
-  onSaveWord: (d: Definition | null) => Promise<void>;
+  onSaveWord: (d: Definition | null, note: string) => Promise<void>;
+  onUpdateNote: (note: string) => Promise<void>;
   onRemoveWord: () => Promise<void>;
   onToggleSentence: () => Promise<void>;
   onError: () => void;
 }) {
   const [def, setDef] = useState<Definition | null | undefined>(undefined);
+  const [note, setNote] = useState(savedWord?.note ?? "");
   const [pending, start] = useTransition();
+  const noteChanged = note.trim() !== (savedWord?.note ?? "");
 
   useEffect(() => {
     let cancelled = false;
@@ -358,6 +370,23 @@ function WordPopover({
           {active.sentence}
         </p>
 
+        <div className="mt-3 flex gap-2">
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && savedWord && noteChanged && !pending) run(() => onUpdateNote(note));
+            }}
+            placeholder="메모 (뜻, 쓰임새 등)"
+            className="min-w-0 flex-1 rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-ink/40"
+          />
+          {savedWord && noteChanged && (
+            <button type="button" disabled={pending} onClick={() => run(() => onUpdateNote(note))} className={btn("secondary")}>
+              메모 저장
+            </button>
+          )}
+        </div>
+
         <div className="mt-4 flex flex-wrap gap-2">
           {savedWord ? (
             <button type="button" disabled={pending} onClick={() => run(onRemoveWord)} className={btn("secondary")}>
@@ -367,7 +396,7 @@ function WordPopover({
             <button
               type="button"
               disabled={pending || def === undefined}
-              onClick={() => run(() => onSaveWord(def ?? null))}
+              onClick={() => run(() => onSaveWord(def ?? null, note))}
               className={btn("primary")}
             >
               {kind} 저장

@@ -67,6 +67,7 @@ export async function saveWord(input: {
   context: string;
   definition?: string | null;
   phonetic?: string | null;
+  note?: string | null;
 }): Promise<SavedWordRow> {
   const word = normalizePhrase(input.word);
   if (!word) throw new Error("empty word");
@@ -79,7 +80,14 @@ export async function saveWord(input: {
   const { data, error } = await db()
     .from("saved_words")
     .upsert(
-      { word, context: input.context.slice(0, 1000), definition, phonetic, article_id: input.articleId },
+      {
+        word,
+        context: input.context.slice(0, 1000),
+        definition,
+        phonetic,
+        note: input.note?.trim() || null,
+        article_id: input.articleId,
+      },
       { onConflict: "word,article_id" },
     )
     .select()
@@ -95,6 +103,18 @@ export async function removeWord(id: string) {
   if (error) throw error;
   revalidatePath("/words");
   revalidatePath("/memorize");
+}
+
+export async function updateWordNote(id: string, note: string): Promise<SavedWordRow> {
+  const { data, error } = await db()
+    .from("saved_words")
+    .update({ note: note.trim() || null })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  revalidatePath("/words");
+  return data as SavedWordRow;
 }
 
 export async function saveSentence(input: { articleId: string; text: string }): Promise<SavedSentenceRow> {

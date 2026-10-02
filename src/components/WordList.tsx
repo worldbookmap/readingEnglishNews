@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { removeWord } from "@/app/actions";
+import { removeWord, updateWordNote } from "@/app/actions";
 import { naverDictUrl } from "@/lib/dictionary";
 import { SOURCE_LABELS, type SourceId } from "@/lib/sources";
 import type { SavedWordRow } from "@/lib/supabase";
@@ -86,7 +86,6 @@ export function WordList({ words }: { words: WordWithArticle[] }) {
 
 function WordCard({ entry, hideDef }: { entry: Entry; hideDef: boolean }) {
   const [revealed, setRevealed] = useState(false);
-  const [pending, start] = useTransition();
   const showDef = !hideDef || revealed;
 
   return (
@@ -112,28 +111,65 @@ function WordCard({ entry, hideDef }: { entry: Entry; hideDef: boolean }) {
 
       <ul className="mt-3 space-y-2">
         {entry.occurrences.map((o) => (
-          <li key={o.id} className="rounded-lg bg-paper px-3 py-2">
-            {o.context && <p className="font-serif text-sm leading-relaxed">{highlight(o.context, entry.word)}</p>}
-            <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-muted">
-              <Link href={`/articles/${o.article.id}`} className="min-w-0 truncate hover:text-ink hover:underline">
-                {SOURCE_LABELS[o.article.source]} · {o.article.title}
-              </Link>
-              <span className="flex shrink-0 items-center gap-2">
-                {formatDate(o.created_at)}
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => start(() => removeWord(o.id))}
-                  className="hover:text-accent"
-                  aria-label="삭제"
-                >
-                  삭제
-                </button>
-              </span>
-            </div>
-          </li>
+          <Occurrence key={o.id} occurrence={o} word={entry.word} />
         ))}
       </ul>
+    </li>
+  );
+}
+
+function Occurrence({ occurrence: o, word }: { occurrence: WordWithArticle; word: string }) {
+  const [note, setNote] = useState(o.note ?? "");
+  const [editing, setEditing] = useState(false);
+  const [pending, start] = useTransition();
+  const saveNote = () =>
+    start(async () => {
+      await updateWordNote(o.id, note);
+      setEditing(false);
+    });
+
+  return (
+    <li className="rounded-lg bg-paper px-3 py-2">
+      {o.context && <p className="font-serif text-sm leading-relaxed">{highlight(o.context, word)}</p>}
+      {editing ? (
+        <div className="mt-2 flex gap-2">
+          <input
+            autoFocus
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && saveNote()}
+            placeholder="메모 (뜻, 쓰임새 등)"
+            className="min-w-0 flex-1 rounded-lg border border-line bg-card px-3 py-1.5 text-sm outline-none focus:border-ink/40"
+          />
+          <button type="button" disabled={pending} onClick={saveNote} className="rounded-lg bg-ink px-3 py-1.5 text-sm text-paper disabled:opacity-50">
+            저장
+          </button>
+        </div>
+      ) : (
+        o.note && <p className="mt-1.5 border-l-2 border-accent pl-3 text-sm text-ink/80">{o.note}</p>
+      )}
+      <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-muted">
+        <Link href={`/articles/${o.article.id}`} className="min-w-0 truncate hover:text-ink hover:underline">
+          {SOURCE_LABELS[o.article.source]} · {o.article.title}
+        </Link>
+        <span className="flex shrink-0 items-center gap-2">
+          {formatDate(o.created_at)}
+          {!editing && (
+            <button type="button" onClick={() => setEditing(true)} className="hover:text-ink">
+              {o.note ? "메모 수정" : "메모"}
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => start(() => removeWord(o.id))}
+            className="hover:text-accent"
+            aria-label="삭제"
+          >
+            삭제
+          </button>
+        </span>
+      </div>
     </li>
   );
 }

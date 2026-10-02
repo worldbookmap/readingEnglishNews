@@ -34,6 +34,7 @@ export interface SavedWordRow {
   context: string | null;
   definition: string | null;
   phonetic: string | null;
+  note: string | null;
   article_id: string;
   created_at: string;
 }
