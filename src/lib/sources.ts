@@ -8,10 +8,12 @@
 // - NYT Modern Love: a weekly column, so "popular" = the newest essays from its RSS
 //   feed. nytimes.com blocks server-side article fetches (bot protection + paywall), so
 //   only the feed's title/summary is stored; the reader pastes the body in the app.
+// - Wait But Why: posts are rare, so the newest post from the RSS feed comes first,
+//   followed by the sidebar's "Popular Posts" list (in its order).
 
-export type SourceId = "newyorker" | "buzzfeed" | "modernlove" | "lithub";
+export type SourceId = "newyorker" | "buzzfeed" | "modernlove" | "lithub" | "waitbutwhy";
 
-export const SOURCES: SourceId[] = ["newyorker", "buzzfeed", "modernlove", "lithub"];
+export const SOURCES: SourceId[] = ["newyorker", "buzzfeed", "modernlove", "lithub", "waitbutwhy"];
 
 export interface PopularItem {
   source: SourceId;
@@ -31,6 +33,7 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   buzzfeed: "BuzzFeed",
   modernlove: "NYT Modern Love",
   lithub: "Literary Hub",
+  waitbutwhy: "Wait But Why",
 };
 
 const UA =
@@ -85,6 +88,19 @@ export async function lithubPopular(limit: number): Promise<PopularItem[]> {
     .map((url, i) => ({ source: "lithub", url, rank: i + 1, bodyFetchable: true }));
 }
 
+const WBW_POST = /https:\/\/waitbutwhy\.com\/\d{4}\/\d{2}\/[a-z0-9-]+\.html/;
+
+export async function waitButWhyPopular(limit: number): Promise<PopularItem[]> {
+  const [feed, home] = await Promise.all([fetchHtml("https://waitbutwhy.com/feed"), fetchHtml("https://waitbutwhy.com/")]);
+  const newest = [...feed.matchAll(/<item>[\s\S]*?<link>([^<]+)<\/link>/g)].map((m) => m[1].trim()).slice(0, 1);
+  const start = home.indexOf("popular_widget");
+  const widget = start < 0 ? "" : home.slice(start, home.indexOf("</ul>", home.indexOf("post-list", start)));
+  const popular = [...widget.matchAll(/<h5>\s*<a href="([^"]+)"/g)].map((m) => m[1]);
+  return uniqueInOrder([...newest, ...popular].filter((u) => WBW_POST.test(u)))
+    .slice(0, limit)
+    .map((url, i) => ({ source: "waitbutwhy", url, rank: i + 1, bodyFetchable: true }));
+}
+
 const MODERN_LOVE_FEED = "https://www.nytimes.com/svc/collections/v1/publish/www.nytimes.com/column/modern-love/rss.xml";
 
 const decodeXml = (s: string) =>
@@ -133,5 +149,7 @@ export async function popularFor(source: SourceId, limit: number): Promise<Popul
       return modernLovePopular(limit);
     case "lithub":
       return lithubPopular(limit);
+    case "waitbutwhy":
+      return waitButWhyPopular(limit);
   }
 }

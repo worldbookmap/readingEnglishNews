@@ -1,6 +1,6 @@
 # Reading English News
 
-어제 인기 있었던 **The New Yorker**, **BuzzFeed**, **NYT Modern Love**, **Literary Hub** 기사를 매일 자동으로 저장하고, 읽기 편하게 보여주는 개인용 웹앱입니다.
+어제 인기 있었던 **The New Yorker**, **BuzzFeed**, **NYT Modern Love**, **Literary Hub**, **Wait But Why** 기사를 매일 자동으로 저장하고, 읽기 편하게 보여주는 개인용 웹앱입니다.
 
 - **오늘의 기사**: 매일 아침 7시(KST)에 사이트별 인기 기사 5개를 불러와 Supabase에 저장합니다. 지난 날짜의 기사도 계속 남아 있습니다.
 - **리더**: 단어를 누르면 영영 뜻(Wiktionary)이 보이고, 단어장에 저장할 수 있습니다. 저장한 단어에는 문맥이 된 문장과 출처 기사가 함께 남습니다.
@@ -18,6 +18,7 @@ Stack: Next.js 16 (App Router) · Supabase (Postgres) · Vercel (hosting + Cron)
 | The New Yorker | 공개된 "Most Popular" 목록이 없어서, **홈페이지 상단에 편집부가 배치한 순서**를 인기 순위 대신 사용 |
 | Literary Hub | 마찬가지로 인기 목록이 없어서 **홈페이지 노출 순서** 사용 |
 | NYT Modern Love | 주간 칼럼이라 [RSS 피드](https://www.nytimes.com/svc/collections/v1/publish/www.nytimes.com/column/modern-love/rss.xml)의 **최신 글** (팟캐스트 제외) |
+| Wait But Why | 새 글이 드물어서 [RSS 피드](https://waitbutwhy.com/feed)의 **최신 글 1개** + 사이드바 **Popular Posts** 순서. 이미 저장한 글은 건너뛰므로, 처음 이후로는 새 글이 올라올 때만 추가됩니다 |
 
 뉴욕타임스는 봇 차단과 유료 구독벽 때문에 서버에서 본문을 가져올 수 없습니다. 그래서 Modern Love는 제목, 요약, 링크만 저장합니다. 기사 화면에서 원문 본문을 복사해 붙여넣으면 다른 기사처럼 읽을 수 있습니다.
 
