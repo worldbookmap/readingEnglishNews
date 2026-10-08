@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { connection } from "next/server";
 import { AddArticleForm } from "@/components/AddArticleForm";
 import { ArticleCard } from "@/components/ArticleCard";
@@ -8,6 +9,10 @@ import { ARTICLE_SUMMARY_COLUMNS, db, type ArticleSummary } from "@/lib/supabase
 // Allows the "fetch now" server action (which scrapes ~10 pages) enough time on Vercel.
 export const maxDuration = 60;
 
+// 직접 추가한 기사: show the newest few, "불러오기" reveals older ones in steps.
+const ADDED_INITIAL = 4;
+const ADDED_STEP = 10;
+
 function dayLabel(date: string) {
   return new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short", timeZone: "UTC" }).format(
     new Date(`${date}T00:00:00Z`),
@@ -16,6 +21,9 @@ function dayLabel(date: string) {
 
 export default async function Home({ searchParams }: PageProps<"/">) {
   await connection();
+  const params = await searchParams;
+  const addedParam = Number(params.added);
+  const addedLimit = Number.isInteger(addedParam) && addedParam > ADDED_INITIAL ? addedParam : ADDED_INITIAL;
   const [popularRes, addedRes] = await Promise.all([
     db()
       .from("articles")
@@ -24,12 +32,19 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       .order("popular_on", { ascending: false })
       .order("popular_rank", { ascending: true })
       .limit(200),
-    db().from("articles").select(ARTICLE_SUMMARY_COLUMNS).eq("source", "custom").order("fetched_at", { ascending: false }).limit(50),
+    db()
+      .from("articles")
+      .select(ARTICLE_SUMMARY_COLUMNS)
+      .eq("source", "custom")
+      .order("fetched_at", { ascending: false })
+      .limit(addedLimit + 1),
   ]);
   if (popularRes.error) throw popularRes.error;
   if (addedRes.error) throw addedRes.error;
   const articles = (popularRes.data ?? []) as ArticleSummary[];
-  const added = (addedRes.data ?? []) as ArticleSummary[];
+  const addedAll = (addedRes.data ?? []) as ArticleSummary[];
+  const added = addedAll.slice(0, addedLimit);
+  const hasMoreAdded = addedAll.length > addedLimit;
 
   const days = [...new Set(articles.map((a) => a.popular_on))];
   const [latest, ...older] = days;
@@ -44,7 +59,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         <FetchNowButton />
       </div>
 
-      <AddArticleForm error={(await searchParams).addError === "1"} />
+      <AddArticleForm error={params.addError === "1"} />
 
       {!latest && (
         <p className="rounded-xl border border-dashed border-line p-8 text-center text-muted">
@@ -62,6 +77,17 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               <ArticleCard key={a.id} article={a} showRank={false} />
             ))}
           </div>
+          {hasMoreAdded && (
+            <div className="mt-4 text-center">
+              <Link
+                href={`/?added=${addedLimit + ADDED_STEP}`}
+                scroll={false}
+                className="inline-block rounded-full border border-line bg-card px-5 py-2 text-sm text-muted transition-colors hover:border-ink/40 hover:text-ink"
+              >
+                불러오기
+              </Link>
+            </div>
+          )}
         </section>
       )}
 
