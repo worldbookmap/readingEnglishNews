@@ -37,6 +37,9 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
   const [selection, setSelection] = useState<Selection | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // While a finger/mouse is on the selection bar: a tap there can collapse the text
+  // selection on mobile before the button's click fires, which would hide the bar.
+  const barPressRef = useRef(false);
 
   const flash = useCallback((msg: string) => {
     setToast(msg);
@@ -60,6 +63,7 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
   // → look up and save as a phrase).
   useEffect(() => {
     const onChange = () => {
+      if (barPressRef.current) return;
       const sel = window.getSelection();
       const inside = sel?.anchorNode && containerRef.current?.contains(sel.anchorNode);
       let text = "";
@@ -68,9 +72,7 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
       if (sel && !sel.isCollapsed && sel.rangeCount) {
         // Snap a selection that starts/ends mid-word ("…a millio") out to whole words.
         const range = sel.getRangeAt(0).cloneRange();
-        const wordOf = (n: Node) => (n.nodeType === Node.TEXT_NODE ? n.parentElement : (n as Element))?.closest(".w");
-        const startWord = wordOf(range.startContainer);
-        const endWord = wordOf(range.endContainer);
+        const [startWord, endWord] = selectedWordBounds(range, containerRef.current);
         if (startWord) range.setStartBefore(startWord);
         if (endWord) range.setEndAfter(endWord);
         text = normSentence(range.toString());
@@ -140,12 +142,14 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
 
       {selection && !active && (
         <SelectionBar
+          pressRef={barPressRef}
           text={selection.text}
           saved={sentences.has(selection.text)}
           onError={onError}
           onSave={async () => {
             await doSaveSentence(selection.text);
             window.getSelection()?.removeAllRanges();
+            setSelection(null);
           }}
           onOpenPhrase={
             selection.phrase &&
@@ -289,6 +293,27 @@ const Body = memo(function Body({
   );
 });
 
+// First and last word spans the selection actually covers. Mobile selection handles
+// often put the range boundaries in the space between words, on a sentence/paragraph
+// element, or at offset 0 of the following word — so look at overlap, not the boundary nodes.
+function selectedWordBounds(range: Range, container: HTMLElement | null): [HTMLElement | null, HTMLElement | null] {
+  if (!container) return [null, null];
+  const common = range.commonAncestorContainer;
+  const commonEl = common.nodeType === Node.ELEMENT_NODE ? (common as Element) : common.parentElement;
+  const ownWord = commonEl?.closest<HTMLElement>(".w");
+  if (ownWord) return [ownWord, ownWord];
+  const scope = commonEl && container.contains(commonEl) ? commonEl : container;
+  const all = [...scope.querySelectorAll<HTMLElement>(".w")];
+  const wr = document.createRange();
+  const overlaps = (w: HTMLElement) => {
+    wr.selectNodeContents(w);
+    // range.end > word.start && range.start < word.end
+    return range.compareBoundaryPoints(Range.START_TO_END, wr) > 0 && range.compareBoundaryPoints(Range.END_TO_START, wr) < 0;
+  };
+  const first = all.find(overlaps) ?? null;
+  return [first, first && (all.findLast(overlaps) ?? null)];
+}
+
 // Indexes of word tokens that belong to an occurrence of a saved phrase.
 function phraseTokens(tokens: Token[], phrases: string[][]): Set<number> {
   const out = new Set<number>();
@@ -415,12 +440,14 @@ function WordPopover({
 }
 
 function SelectionBar({
+  pressRef,
   text,
   saved,
   onSave,
   onOpenPhrase,
   onError,
 }: {
+  pressRef: React.RefObject<boolean>;
   text: string;
   saved: boolean;
   onSave: () => Promise<void>;
@@ -428,25 +455,34 @@ function SelectionBar({
   onError: () => void;
 }) {
   const [pending, start] = useTransition();
+  useEffect(() => () => void (pressRef.current = false), [pressRef]);
+  const release = () => window.setTimeout(() => (pressRef.current = false), 300);
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-3 sm:pb-6">
-      <div className="flex w-full max-w-xl items-center gap-3 rounded-2xl border border-line bg-card p-3 pl-4 shadow-2xl">
-        <p className="line-clamp-2 flex-1 font-serif text-sm text-ink/80">{text}</p>
-        {onOpenPhrase && (
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={onOpenPhrase} className={btn("primary")}>
-            표현 뜻 보기
+    <div
+      className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-3 sm:pb-6"
+      onPointerDown={() => (pressRef.current = true)}
+      onPointerUp={release}
+      onPointerCancel={release}
+    >
+      <div className="flex w-full max-w-xl flex-col gap-3 rounded-2xl border border-line bg-card p-3 pl-4 shadow-2xl sm:flex-row sm:items-center">
+        <p className="line-clamp-2 min-w-0 flex-1 font-serif text-sm text-ink/80">{text}</p>
+        <div className="flex shrink-0 justify-end gap-2">
+          {onOpenPhrase && (
+            <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={onOpenPhrase} className={btn("primary")}>
+              표현 뜻 보기
+            </button>
+          )}
+          <button
+            type="button"
+            // Keep the selection alive while pressing the button.
+            onMouseDown={(e) => e.preventDefault()}
+            disabled={pending || saved}
+            onClick={() => start(() => onSave().catch(onError))}
+            className={btn(onOpenPhrase ? "secondary" : "primary")}
+          >
+            {saved ? "저장됨" : pending ? "저장 중…" : onOpenPhrase ? "문장으로 저장" : "선택한 문장 저장"}
           </button>
-        )}
-        <button
-          type="button"
-          // Keep the selection alive while pressing the button.
-          onMouseDown={(e) => e.preventDefault()}
-          disabled={pending || saved}
-          onClick={() => start(() => onSave().catch(onError))}
-          className={btn(onOpenPhrase ? "secondary" : "primary")}
-        >
-          {saved ? "저장됨" : pending ? "저장 중…" : onOpenPhrase ? "문장으로 저장" : "선택한 문장 저장"}
-        </button>
+        </div>
       </div>
     </div>
   );
