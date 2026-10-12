@@ -96,7 +96,7 @@ export async function ingestUrl(url: string): Promise<string> {
   try {
     row = await fetchedRow(url);
   } catch {
-    row = feedOnlyRow({ url });
+    row = feedOnlyRow({ url, title: titleFromUrl(url) });
   }
 
   const addedOn = today();
@@ -115,6 +115,20 @@ export async function ingestUrl(url: string): Promise<string> {
     .single();
   if (insertError) throw insertError;
   return data.id as string;
+}
+
+// ".../trump-nobel-peace-prize-norway.html" → "Trump Nobel Peace Prize Norway", so an
+// article saved without its page still has a readable title.
+function titleFromUrl(url: string): string | undefined {
+  const slug = new URL(url).pathname
+    .split("/")
+    .filter(Boolean)
+    .pop()
+    ?.replace(/\.[a-z]+$/i, "");
+  if (!slug || !/[a-z]/i.test(slug)) return undefined;
+  const words = decodeURIComponent(slug).split(/[-_]+/).filter(Boolean);
+  if (words.length < 2) return undefined;
+  return words.map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
 }
 
 async function fetchedRow(url: string) {

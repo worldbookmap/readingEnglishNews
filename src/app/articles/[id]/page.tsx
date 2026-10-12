@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { formatDate, readingMinutes } from "@/components/ArticleCard";
+import { DeleteArticleButton } from "@/components/DeleteArticleButton";
 import { MarkOpened } from "@/components/MarkOpened";
 import { PasteBody } from "@/components/PasteBody";
 import { ReadToggle } from "@/components/ReadToggle";
@@ -44,13 +45,14 @@ export default async function ArticlePage({ params }: PageProps<"/articles/[id]"
             {a.word_count ? `${a.word_count.toLocaleString()} words, ${readingMinutes(a.word_count)}분` : "본문 없음"}
           </span>
         </div>
-        <h1 className="font-serif text-3xl leading-tight font-semibold tracking-tight sm:text-4xl">{a.title}</h1>
+        <h1 className="font-serif text-3xl leading-tight font-semibold tracking-tight wrap-anywhere sm:text-4xl">{a.title}</h1>
         {a.byline && <p className="mt-3 text-sm text-muted">{a.byline}</p>}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <a href={a.url} target="_blank" rel="noreferrer" className="text-sm text-muted underline underline-offset-4 hover:text-ink">
             원문 보기 ↗
           </a>
           <div className="flex items-center gap-2">
+            <DeleteArticleButton articleId={a.id} savedCount={(words.data?.length ?? 0) + (sentences.data?.length ?? 0)} />
             <RereadToggle articleId={a.id} rereadAt={a.reread_at} />
             <ReadToggle articleId={a.id} readAt={a.read_at} />
           </div>

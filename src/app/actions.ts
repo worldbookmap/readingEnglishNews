@@ -54,6 +54,17 @@ export async function setReread(articleId: string, reread: boolean) {
   revalidatePath(`/articles/${articleId}`);
 }
 
+// Removes the article; its saved words and sentences go with it (on delete cascade).
+export async function deleteArticle(articleId: string) {
+  const { error } = await db().from("articles").delete().eq("id", articleId);
+  if (error) throw error;
+  revalidatePath("/");
+  revalidatePath("/history");
+  revalidatePath("/words");
+  revalidatePath("/memorize");
+  redirect("/");
+}
+
 // "기사 추가" on the home page: save one article by URL and open it.
 export async function addArticle(formData: FormData) {
   let url: URL;

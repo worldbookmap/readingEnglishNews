@@ -26,13 +26,13 @@ export function ArticleCard({ article, showRank = true }: { article: ArticleSumm
         </span>
       )}
       <div className="min-w-0 flex-1">
-        <div className="mb-1 flex items-center gap-2 text-xs text-muted">
+        <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
           <span className="font-medium uppercase tracking-wide">{SOURCE_LABELS[article.source]}</span>
           <span>·</span>
           <span>{article.word_count ? `${readingMinutes(article.word_count)}분` : "본문 붙여넣기 필요"}</span>
           <ReadStatus article={article} />
         </div>
-        <h3 className="font-serif text-lg leading-snug font-semibold group-hover:underline group-hover:decoration-1 group-hover:underline-offset-4">
+        <h3 className="font-serif text-lg leading-snug font-semibold wrap-anywhere group-hover:underline group-hover:decoration-1 group-hover:underline-offset-4">
           {article.title}
         </h3>
         {article.excerpt && <p className="mt-1 line-clamp-2 text-sm text-muted">{article.excerpt}</p>}
