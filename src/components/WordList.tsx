@@ -7,7 +7,7 @@ import { naverDictUrl, playphraseUrl, youglishUrl } from "@/lib/dictionary";
 import { SOURCE_LABELS, type SourceId } from "@/lib/sources";
 import type { SavedWordRow } from "@/lib/supabase";
 import { formatDate } from "./ArticleCard";
-import { SpeakButton } from "./SpeakButton";
+import { SpeakButton, VoicePicker } from "./SpeakButton";
 
 export type WordWithArticle = SavedWordRow & { article: { id: string; title: string; source: SourceId } };
 
@@ -74,6 +74,7 @@ export function WordList({ words }: { words: WordWithArticle[] }) {
         <label className="flex items-center gap-2 rounded-full border border-line bg-card px-3 py-2 text-sm">
           <input type="checkbox" checked={hideDefs} onChange={(e) => setHideDefs(e.target.checked)} />뜻 가리기
         </label>
+        <VoicePicker />
       </div>
 
       <ul className="grid gap-3 md:grid-cols-2">

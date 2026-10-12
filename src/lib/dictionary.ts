@@ -4,7 +4,8 @@ import { splitWords } from "./tokenize";
 // the browser (all sources are free, keyless and CORS-enabled):
 // - Wiktionary definitions. Inflected forms ("smuggled", "ran") only say "past of
 //   smuggle", so those follow the link to the base word and use its definitions.
-// - Wiktionary IPA from the entry's wikitext ({{IPA|en|/ˈsmʌɡəl/}}).
+// - Wiktionary IPA and native-speaker recordings from the entry's wikitext
+//   ({{IPA|en|/ˈsmʌɡəl/}}, {{audio|en|En-us-smuggle.ogg|a=US}}), played from Wikimedia Commons.
 // - Datamuse (WordNet/Wiktionary data, CMU pronouncing dictionary) when Wiktionary
 //   has no entry or no IPA. Multi-word expressions ("look forward to") work in both.
 
@@ -12,6 +13,14 @@ export interface Definition {
   phonetic: string | null;
   meanings: { partOfSpeech: string; definition: string }[];
   headword?: string; // the base word the meanings belong to, when different ("smuggled" → "smuggle")
+  recordings?: Recording[];
+}
+
+// A native speaker's recording on Wikimedia Commons, labelled by accent ("미국", "영국").
+export interface Recording {
+  file: string;
+  accent: string;
+  url: string; // Commons' MP3 transcode, which plays everywhere (Safari can't play .ogg)
 }
 
 interface WiktionaryEntry {
@@ -82,15 +91,74 @@ async function wiktionaryMeanings(
   return { meanings: meanings.slice(0, MAX_MEANINGS), formOf };
 }
 
-async function wiktionaryIpa(word: string): Promise<string | null> {
+const ACCENTS: [RegExp, string][] = [
+  [/\b(US|GA|General American|American|cot-caught)\b/i, "미국"],
+  [/\b(UK|RP|SSB|England|English|British|Scotland|Wales)\b/i, "영국"],
+  [/\b(AU|Australia|Queensland|NZ|New Zealand)\b/i, "호주"],
+  [/\b(CA|Canada|Canadian)\b/i, "캐나다"],
+];
+const ACCENT_ORDER = ["미국", "영국", "호주", "캐나다", "기타"];
+
+function accentLabel(accent: string | undefined, file: string): string {
+  // Without "a=", files are usually named "En-us-…", "En-uk-…", "En-au-…".
+  const hint = accent ?? file.match(/^en-(us|uk|au|ca)-/i)?.[1] ?? "";
+  return ACCENTS.find(([re]) => re.test(hint))?.[1] ?? "기타";
+}
+
+async function wiktionaryPronunciation(word: string): Promise<{ ipa: string | null; recordings: Recording[] }> {
   const data = await getJson<{ parse?: { wikitext?: string } }>(
     `https://en.wiktionary.org/w/api.php?action=parse&page=${wiktionaryTitle(word)}&prop=wikitext&format=json&formatversion=2&origin=*`,
   );
   const text = data?.parse?.wikitext ?? "";
-  const english = text.slice(Math.max(0, text.indexOf("==English==")));
+  const start = text.indexOf("==English==");
+  if (start < 0) return { ipa: null, recordings: [] };
+  const rest = text.slice(start + 11);
+  const nextLanguage = rest.search(/\n==[^=]/);
+  const english = nextLanguage < 0 ? rest : rest.slice(0, nextLanguage);
   const template = english.match(/\{\{IPA\|en\|([^}]*)\}\}/)?.[1];
-  return template?.split("|").find((part) => /^[/[]/.test(part.trim()))?.trim() ?? null;
+  const ipa = template?.split("|").find((part) => /^[/[]/.test(part.trim()))?.trim() ?? null;
+
+  // One recording per accent, American first.
+  const byAccent = new Map<string, { file: string; accent: string }>();
+  for (const [, params] of english.matchAll(/\{\{audio\|en\|([^}]*)\}\}/g)) {
+    const [file, ...named] = params.split("|").map((p) => p.trim());
+    const accent = named.find((p) => p.startsWith("a="))?.slice(2);
+    const label = accentLabel(accent, file);
+    if (file && !byAccent.has(label)) byAccent.set(label, { file, accent: label });
+  }
+  const picked = [...byAccent.values()]
+    .sort((a, b) => ACCENT_ORDER.indexOf(a.accent) - ACCENT_ORDER.indexOf(b.accent))
+    .slice(0, 3);
+  // URLs are resolved up front so a tap can start playback right away (iOS only allows
+  // audio that starts during the tap itself).
+  const urls = await commonsAudioUrls(picked.map((r) => r.file));
+  const recordings = picked.flatMap((r) => (urls.has(r.file) ? [{ ...r, url: urls.get(r.file)! }] : []));
+  return { ipa, recordings };
 }
+
+async function commonsAudioUrls(files: string[]): Promise<Map<string, string>> {
+  const urls = new Map<string, string>();
+  if (!files.length) return urls;
+  const data = await getJson<{
+    query?: {
+      normalized?: { from: string; to: string }[];
+      pages?: { title: string; videoinfo?: { url: string; derivatives?: { type: string; src: string }[] }[] }[];
+    };
+  }>(
+    `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(files.map((f) => `File:${f}`).join("|"))}&prop=videoinfo&viprop=url|derivatives&format=json&formatversion=2&origin=*`,
+  );
+  const titleOf = new Map((data?.query?.normalized ?? []).map((n) => [n.from, n.to]));
+  for (const file of files) {
+    const title = titleOf.get(`File:${file}`) ?? `File:${file}`;
+    const info = data?.query?.pages?.find((p) => p.title === title)?.videoinfo?.[0];
+    const url = info?.derivatives?.find((d) => d.type === "audio/mpeg")?.src ?? info?.url;
+    if (url) urls.set(file, url);
+  }
+  return urls;
+}
+
+// For the word list, where only the word is stored: fetched when the speaker is pressed.
+export const recordingsFor = async (word: string) => (await wiktionaryPronunciation(word)).recordings;
 
 const DATAMUSE_POS: Record<string, string> = { n: "noun", v: "verb", adj: "adjective", adv: "adverb" };
 
@@ -148,9 +216,9 @@ function arpabetToIpa(arpabet: string): string | null {
 export async function lookup(word: string): Promise<Definition | null> {
   // A phrase's CMU pronunciation runs its words together, so phrases get one per word.
   const parts = word.includes(" ") ? word.split(" ") : [];
-  const [wiki, ipa, dm, ...partsDm] = await Promise.all([
+  const [wiki, pron, dm, ...partsDm] = await Promise.all([
     wiktionaryMeanings(word),
-    wiktionaryIpa(word),
+    wiktionaryPronunciation(word),
     datamuse(word),
     ...parts.map(datamuse),
   ]);
@@ -181,8 +249,8 @@ export async function lookup(word: string): Promise<Definition | null> {
   }
   // The pronunciation stays the looked-up word's own ("ran", not "run").
   const cmu = parts.length ? (partsDm.every((p) => p.ipa) ? partsDm.map((p) => p.ipa).join(" ") : null) : dm.ipa;
-  const phonetic = ipa ?? (cmu ? `/${cmu}/` : null);
-  return meanings.length ? { phonetic, meanings, ...(headword ? { headword } : {}) } : null;
+  const phonetic = pron.ipa ?? (cmu ? `/${cmu}/` : null);
+  return meanings.length ? { phonetic, meanings, recordings: pron.recordings, ...(headword ? { headword } : {}) } : null;
 }
 
 export function formatDefinition(d: Definition | null): string | null {

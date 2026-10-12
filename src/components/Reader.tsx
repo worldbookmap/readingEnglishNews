@@ -6,7 +6,7 @@ import { formatDefinition, lookup, naverDictUrl, normalizePhrase, normalizeWord,
 import type { Block } from "@/lib/extract";
 import type { SavedSentenceRow, SavedWordRow } from "@/lib/supabase";
 import { splitSentences, splitWords, type Token } from "@/lib/tokenize";
-import { SpeakButton } from "./SpeakButton";
+import { SpeakButton, VoicePicker } from "./SpeakButton";
 
 interface Props {
   articleId: string;
@@ -374,7 +374,7 @@ function WordPopover({
             <div className="flex flex-wrap items-baseline gap-x-3">
               <span className="font-serif text-2xl font-semibold">{active.word}</span>
               {def?.phonetic && <span className="text-sm text-muted">{def.phonetic}</span>}
-              <SpeakButton text={active.word} />
+              <SpeakButton text={active.word} recordings={def?.recordings ?? []} />
             </div>
           </div>
           <button type="button" onClick={onClose} className="-m-2 p-2 text-muted hover:text-ink" aria-label="닫기">
@@ -442,6 +442,7 @@ function WordPopover({
           <a href={playphraseUrl(active.word)} target="_blank" rel="noreferrer" className={btn("ghost")}>
             PlayPhrase ↗
           </a>
+          <VoicePicker className="py-1.5 text-xs text-muted" />
         </div>
       </div>
     </div>
