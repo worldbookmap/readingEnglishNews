@@ -7,6 +7,7 @@ import { naverDictUrl, playphraseUrl, youglishUrl } from "@/lib/dictionary";
 import { SOURCE_LABELS, type SourceId } from "@/lib/sources";
 import type { SavedWordRow } from "@/lib/supabase";
 import { formatDate } from "./ArticleCard";
+import { SpeakButton } from "./SpeakButton";
 
 export type WordWithArticle = SavedWordRow & { article: { id: string; title: string; source: SourceId } };
 
@@ -94,6 +95,7 @@ function WordCard({ entry, hideDef }: { entry: Entry; hideDef: boolean }) {
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
           <span className="font-serif text-xl font-semibold wrap-anywhere">{entry.word}</span>
           {entry.phonetic && <span className="text-xs text-muted">{entry.phonetic}</span>}
+          <SpeakButton text={entry.word} />
         </div>
         <div className="flex shrink-0 gap-3 text-xs text-muted">
           <a href={youglishUrl(entry.word)} target="_blank" rel="noreferrer" className="hover:text-ink">
