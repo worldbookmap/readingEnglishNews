@@ -16,7 +16,7 @@ export function Nav() {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-paper/90 backdrop-blur">
       <nav className="mx-auto flex max-w-5xl items-center gap-1 overflow-x-auto px-4 py-3 sm:px-6">
-        <Link href="/" className="mr-3 shrink-0 font-serif text-lg font-semibold tracking-tight">
+        <Link href="/" className="mr-1 shrink-0 font-serif text-lg sm:mr-3 font-semibold tracking-tight">
           Reading<span className="text-accent">.</span>
         </Link>
         {LINKS.map((l) => {
@@ -25,7 +25,7 @@ export function Nav() {
             <Link
               key={l.href}
               href={l.href}
-              className={`shrink-0 rounded-full px-3 py-1.5 text-sm transition-colors ${
+              className={`shrink-0 rounded-full px-2 py-1.5 text-sm sm:px-3 transition-colors ${
                 active ? "bg-ink text-paper" : "text-muted hover:text-ink"
               }`}
             >

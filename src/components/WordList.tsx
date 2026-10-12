@@ -89,10 +89,10 @@ function WordCard({ entry, hideDef }: { entry: Entry; hideDef: boolean }) {
   const showDef = !hideDef || revealed;
 
   return (
-    <li className="rounded-xl border border-line bg-card p-4">
-      <div className="flex items-baseline justify-between gap-2">
+    <li className="min-w-0 rounded-xl border border-line bg-card p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-          <span className="font-serif text-xl font-semibold">{entry.word}</span>
+          <span className="font-serif text-xl font-semibold wrap-anywhere">{entry.word}</span>
           {entry.phonetic && <span className="text-xs text-muted">{entry.phonetic}</span>}
         </div>
         <div className="flex shrink-0 gap-3 text-xs text-muted">
