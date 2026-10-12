@@ -85,6 +85,10 @@ export const naverDictUrl = (word: string) => `https://en.dict.naver.com/#/searc
 // YouGlish: YouTube clips where the word or phrase is spoken.
 export const youglishUrl = (phrase: string) => `https://youglish.com/pronounce/${encodeURIComponent(phrase)}/english`;
 
+// PlayPhrase: movie and TV clips containing the phrase.
+export const playphraseUrl = (phrase: string) =>
+  `https://www.playphrase.me/#/search?q=${encodeURIComponent(phrase)}&language=en`;
+
 // "Ruthless," -> "ruthless"; keeps inner apostrophes/hyphens ("don't", "well-known").
 export function normalizeWord(raw: string): string {
   return raw

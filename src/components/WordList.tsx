@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { removeWord, updateWordNote } from "@/app/actions";
-import { naverDictUrl, youglishUrl } from "@/lib/dictionary";
+import { naverDictUrl, playphraseUrl, youglishUrl } from "@/lib/dictionary";
 import { SOURCE_LABELS, type SourceId } from "@/lib/sources";
 import type { SavedWordRow } from "@/lib/supabase";
 import { formatDate } from "./ArticleCard";
@@ -98,6 +98,9 @@ function WordCard({ entry, hideDef }: { entry: Entry; hideDef: boolean }) {
         <div className="flex shrink-0 gap-3 text-xs text-muted">
           <a href={youglishUrl(entry.word)} target="_blank" rel="noreferrer" className="hover:text-ink">
             YouGlish ↗
+          </a>
+          <a href={playphraseUrl(entry.word)} target="_blank" rel="noreferrer" className="hover:text-ink">
+            PlayPhrase ↗
           </a>
           <a href={naverDictUrl(entry.word)} target="_blank" rel="noreferrer" className="hover:text-ink">
             네이버 사전 ↗
