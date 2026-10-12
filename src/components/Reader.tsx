@@ -370,7 +370,7 @@ function WordPopover({
       <div className="w-full max-w-xl rounded-2xl border border-line bg-card p-5 shadow-2xl">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="flex items-baseline gap-3">
+            <div className="flex flex-wrap items-baseline gap-x-3">
               <span className="font-serif text-2xl font-semibold">{active.word}</span>
               {def?.phonetic && <span className="text-sm text-muted">{def.phonetic}</span>}
             </div>
@@ -382,6 +382,7 @@ function WordPopover({
 
         <div className="mt-2 max-h-36 overflow-y-auto text-sm">
           {def === undefined && <p className="text-muted">뜻을 찾는 중…</p>}
+          {def?.headword && <p className="mb-1 text-xs text-muted">원형 {def.headword}</p>}
           {def === null && <p className="text-muted">영영사전에서 뜻을 찾지 못했어요. 네이버 사전에서 확인해보세요.</p>}
           {def?.meanings.map((m, i) => (
             <p key={i} className="mb-1">
