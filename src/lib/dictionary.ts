@@ -82,6 +82,9 @@ export function formatDefinition(d: Definition | null): string | null {
 
 export const naverDictUrl = (word: string) => `https://en.dict.naver.com/#/search?query=${encodeURIComponent(word)}`;
 
+// YouGlish: YouTube clips where the word or phrase is spoken.
+export const youglishUrl = (phrase: string) => `https://youglish.com/pronounce/${encodeURIComponent(phrase)}/english`;
+
 // "Ruthless," -> "ruthless"; keeps inner apostrophes/hyphens ("don't", "well-known").
 export function normalizeWord(raw: string): string {
   return raw

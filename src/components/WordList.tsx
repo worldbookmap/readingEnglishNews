@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { removeWord, updateWordNote } from "@/app/actions";
-import { naverDictUrl } from "@/lib/dictionary";
+import { naverDictUrl, youglishUrl } from "@/lib/dictionary";
 import { SOURCE_LABELS, type SourceId } from "@/lib/sources";
 import type { SavedWordRow } from "@/lib/supabase";
 import { formatDate } from "./ArticleCard";
@@ -91,13 +91,18 @@ function WordCard({ entry, hideDef }: { entry: Entry; hideDef: boolean }) {
   return (
     <li className="rounded-xl border border-line bg-card p-4">
       <div className="flex items-baseline justify-between gap-2">
-        <div className="flex items-baseline gap-2">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
           <span className="font-serif text-xl font-semibold">{entry.word}</span>
           {entry.phonetic && <span className="text-xs text-muted">{entry.phonetic}</span>}
         </div>
-        <a href={naverDictUrl(entry.word)} target="_blank" rel="noreferrer" className="shrink-0 text-xs text-muted hover:text-ink">
-          네이버 사전 ↗
-        </a>
+        <div className="flex shrink-0 gap-3 text-xs text-muted">
+          <a href={youglishUrl(entry.word)} target="_blank" rel="noreferrer" className="hover:text-ink">
+            YouGlish ↗
+          </a>
+          <a href={naverDictUrl(entry.word)} target="_blank" rel="noreferrer" className="hover:text-ink">
+            네이버 사전 ↗
+          </a>
+        </div>
       </div>
 
       {entry.definition &&

@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { removeSentence, removeWord, saveSentence, saveWord, updateWordNote } from "@/app/actions";
-import { formatDefinition, lookup, naverDictUrl, normalizePhrase, normalizeWord, type Definition } from "@/lib/dictionary";
+import { formatDefinition, lookup, naverDictUrl, normalizePhrase, normalizeWord, youglishUrl, type Definition } from "@/lib/dictionary";
 import type { Block } from "@/lib/extract";
 import type { SavedSentenceRow, SavedWordRow } from "@/lib/supabase";
 import { splitSentences, splitWords, type Token } from "@/lib/tokenize";
@@ -432,6 +432,9 @@ function WordPopover({
           </button>
           <a href={naverDictUrl(active.word)} target="_blank" rel="noreferrer" className={btn("ghost")}>
             네이버 사전 ↗
+          </a>
+          <a href={youglishUrl(active.word)} target="_blank" rel="noreferrer" className={btn("ghost")}>
+            YouGlish ↗
           </a>
         </div>
       </div>
