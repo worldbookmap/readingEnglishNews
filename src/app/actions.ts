@@ -185,7 +185,7 @@ export async function fetchNow() {
   return { saved: result.saved.length, skipped: result.skipped.filter((s) => s.reason !== "already saved").length };
 }
 
-// Manual "새로 불러오기" on the 암기장 page: re-import every studylang file from GitHub.
+// Manual "새로 불러오기" on the 암기장 page: re-import every studylang profile.
 export async function refreshStudyWords() {
   const result = await importStudyWords();
   revalidatePath("/memorize");

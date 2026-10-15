@@ -2,10 +2,11 @@ import "server-only";
 import { STUDY_SOURCES, type StudySource } from "./studySources";
 import { db } from "./supabase";
 
-const fileUrl = (source: StudySource) =>
-  `https://raw.githubusercontent.com/worldbookmap/studylang/main/data/${STUDY_SOURCES[source]}.json`;
+// studylang keeps its entries in Supabase and serves them through this route.
+const entriesUrl = (source: StudySource) =>
+  `https://studylangu.vercel.app/api/entries?user=${STUDY_SOURCES[source]}`;
 
-// Entry types brought into the 암기장; contractions and dialogues are left out.
+// Entry types brought into the 암기장; shadowing sentences are left out.
 const IMPORTED_TYPES = new Set(["word", "pattern"]);
 
 interface StudyEntry {
@@ -17,9 +18,11 @@ interface StudyEntry {
 }
 
 async function fetchWords(source: StudySource, now: string) {
-  // The query string sidesteps raw.githubusercontent.com's ~5 minute CDN cache.
-  const res = await fetch(`${fileUrl(source)}?t=${Date.now()}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`${STUDY_SOURCES[source]}.json: HTTP ${res.status}`);
+  const res = await fetch(entriesUrl(source), { cache: "no-store" });
+  if (!res.ok) {
+    const { error } = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(`studylang ${source}: HTTP ${res.status}${error ? ` (${error})` : ""}`);
+  }
   const { entries } = (await res.json()) as { entries: StudyEntry[] };
   return entries
     .filter((e) => IMPORTED_TYPES.has(e.type) && e.english?.trim() && e.korean?.trim())
@@ -33,9 +36,9 @@ async function fetchWords(source: StudySource, now: string) {
     }));
 }
 
-// Replaces study_words with the current word and pattern entries of every studylang file.
-// Entries removed from a file are removed here too. Both files are fetched before
-// anything is written, so a failed download leaves the table untouched.
+// Replaces study_words with the current word and pattern entries of every studylang profile.
+// Entries deleted in studylang are removed here too. Every profile is fetched before
+// anything is written, so a failed request leaves the table untouched.
 export async function importStudyWords(): Promise<Record<StudySource, number>> {
   const now = new Date().toISOString();
   const sources = Object.keys(STUDY_SOURCES) as StudySource[];
