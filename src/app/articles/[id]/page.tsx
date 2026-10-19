@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { formatDate, readingMinutes } from "@/components/ArticleCard";
 import { DeleteArticleButton } from "@/components/DeleteArticleButton";
 import { MarkOpened } from "@/components/MarkOpened";
@@ -21,6 +21,8 @@ export default async function ArticlePage({ params }: PageProps<"/articles/[id]"
   if (article.error) throw article.error;
   if (!article.data) notFound();
   const a = article.data as ArticleRow;
+  // Saved words link here; books have their own paged reader.
+  if (a.source === "book") redirect(`/books/${a.id}`);
 
   return (
     <article className="mx-auto max-w-2xl">

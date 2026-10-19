@@ -14,10 +14,19 @@ export function formatDate(iso: string | null, withTime = false) {
 
 export const readingMinutes = (words: number) => Math.max(1, Math.round(words / 220));
 
+function lengthLabel(article: ArticleSummary) {
+  if (article.source === "book") {
+    const progress = article.last_opened_at ? ` · ${article.current_page}/${article.page_count}` : "";
+    return `${article.page_count}페이지${progress}`;
+  }
+  return article.word_count ? `${readingMinutes(article.word_count)}분` : "본문 붙여넣기 필요";
+}
+
 export function ArticleCard({ article, showRank = true }: { article: ArticleSummary; showRank?: boolean }) {
+  const isBook = article.source === "book";
   return (
     <Link
-      href={`/articles/${article.id}`}
+      href={isBook ? `/books/${article.id}` : `/articles/${article.id}`}
       className="group flex gap-4 rounded-xl border border-line bg-card p-3 transition-colors hover:border-ink/30 sm:p-4"
     >
       {showRank && (
@@ -29,12 +38,13 @@ export function ArticleCard({ article, showRank = true }: { article: ArticleSumm
         <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
           <span className="font-medium uppercase tracking-wide">{SOURCE_LABELS[article.source]}</span>
           <span>·</span>
-          <span>{article.word_count ? `${readingMinutes(article.word_count)}분` : "본문 붙여넣기 필요"}</span>
+          <span>{lengthLabel(article)}</span>
           <ReadStatus article={article} />
         </div>
         <h3 className="font-serif text-lg leading-snug font-semibold wrap-anywhere group-hover:underline group-hover:decoration-1 group-hover:underline-offset-4">
           {article.title}
         </h3>
+        {isBook && article.byline && <p className="mt-0.5 text-sm text-muted">{article.byline}</p>}
         {article.excerpt && <p className="mt-1 line-clamp-2 text-sm text-muted">{article.excerpt}</p>}
       </div>
       {article.image_url && (
@@ -43,7 +53,7 @@ export function ArticleCard({ article, showRank = true }: { article: ArticleSumm
           src={article.image_url}
           alt=""
           loading="lazy"
-          className="hidden h-20 w-28 shrink-0 rounded-lg object-cover sm:block"
+          className={`hidden shrink-0 rounded-lg object-cover sm:block ${isBook ? "h-24 w-16" : "h-20 w-28"}`}
         />
       )}
     </Link>

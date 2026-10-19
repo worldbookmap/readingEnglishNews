@@ -13,7 +13,8 @@
 
 export type FeedSourceId = "newyorker" | "buzzfeed" | "modernlove" | "lithub" | "waitbutwhy";
 // "custom": an article the reader added by URL (not part of the daily fetch).
-export type SourceId = FeedSourceId | "custom";
+// "book": a book typed in or imported from Project Gutenberg (see lib/books.ts).
+export type SourceId = FeedSourceId | "custom" | "book";
 
 export const SOURCES: FeedSourceId[] = ["newyorker", "buzzfeed", "modernlove", "lithub", "waitbutwhy"];
 
@@ -37,6 +38,7 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   lithub: "Literary Hub",
   waitbutwhy: "Wait But Why",
   custom: "직접 추가",
+  book: "책",
 };
 
 const UA =

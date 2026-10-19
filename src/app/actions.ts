@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { AUTH_COOKIE, authToken } from "@/lib/auth";
 import { formatDefinition, lookup, normalizePhrase } from "@/lib/dictionary";
+import { importPublicBook, saveBook } from "@/lib/books";
 import { ingestPopular, ingestUrl } from "@/lib/ingest";
 import { importStudyWords } from "@/lib/studylang";
 import type { Block } from "@/lib/extract";
@@ -41,6 +42,7 @@ export async function setRead(articleId: string, read: boolean) {
   if (error) throw error;
   revalidatePath("/");
   revalidatePath("/history");
+  revalidatePath("/books", "layout");
   revalidatePath(`/articles/${articleId}`);
 }
 
@@ -51,18 +53,20 @@ export async function setReread(articleId: string, reread: boolean) {
     .eq("id", articleId);
   if (error) throw error;
   revalidatePath("/history");
+  revalidatePath("/books", "layout");
   revalidatePath(`/articles/${articleId}`);
 }
 
 // Removes the article; its saved words and sentences go with it (on delete cascade).
 export async function deleteArticle(articleId: string) {
-  const { error } = await db().from("articles").delete().eq("id", articleId);
+  const { data, error } = await db().from("articles").delete().eq("id", articleId).select("source");
   if (error) throw error;
   revalidatePath("/");
+  revalidatePath("/books");
   revalidatePath("/history");
   revalidatePath("/words");
   revalidatePath("/memorize");
-  redirect("/");
+  redirect(data?.[0]?.source === "book" ? "/books" : "/");
 }
 
 // "기사 추가" on the home page: save one article by URL and open it.
@@ -95,6 +99,49 @@ export async function setArticleBody(articleId: string, text: string) {
   if (error) throw error;
   revalidatePath("/");
   revalidatePath(`/articles/${articleId}`);
+}
+
+// "직접 입력" on 책: the reader types or pastes a whole book (or a .txt file's contents).
+export async function addBook(_prev: { error: string | null }, formData: FormData): Promise<{ error: string | null }> {
+  const title = String(formData.get("title") ?? "").replace(/\s+/g, " ").trim();
+  const author = String(formData.get("author") ?? "").replace(/\s+/g, " ").trim();
+  const text = String(formData.get("text") ?? "");
+  if (!title) return { error: "제목을 입력해주세요" };
+  let id: string;
+  try {
+    id = await saveBook({ url: `book:${crypto.randomUUID()}`, title, author: author || null, summary: null, imageUrl: null, text });
+  } catch (e) {
+    return { error: e instanceof Error && e.message === "본문이 너무 짧아요" ? e.message : "저장하지 못했어요. 다시 시도해주세요" };
+  }
+  revalidatePath("/");
+  revalidatePath("/books");
+  redirect(`/books/${id}`);
+}
+
+// "가져오기" on a Project Gutenberg search result.
+export async function importBook(gutenbergId: number): Promise<{ error: string }> {
+  let id: string;
+  try {
+    id = await importPublicBook(gutenbergId);
+  } catch {
+    return { error: "가져오지 못했어요. 잠시 후 다시 시도해주세요" };
+  }
+  revalidatePath("/");
+  revalidatePath("/books");
+  redirect(`/books/${id}`);
+}
+
+// Opening a book page counts as 클릭함 and remembers the page to resume from.
+export async function openBookPage(articleId: string, page: number) {
+  const [opened, updated] = await Promise.all([
+    db().rpc("mark_article_opened", { p_id: articleId }),
+    db().from("articles").update({ current_page: page }).eq("id", articleId),
+  ]);
+  if (opened.error) throw opened.error;
+  if (updated.error) throw updated.error;
+  revalidatePath("/");
+  revalidatePath("/books");
+  revalidatePath("/history");
 }
 
 export async function saveWord(input: {

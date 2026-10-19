@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const LINKS = [
   { href: "/", label: "오늘의 기사" },
+  { href: "/books", label: "책" },
   { href: "/history", label: "읽은 글" },
   { href: "/words", label: "단어·문장" },
   { href: "/memorize", label: "암기장" },

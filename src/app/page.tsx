@@ -12,6 +12,7 @@ export const maxDuration = 60;
 // 직접 추가한 기사: show the newest few, "불러오기" reveals older ones in steps.
 const ADDED_INITIAL = 4;
 const ADDED_STEP = 10;
+const BOOKS_SHOWN = 4;
 
 function dayLabel(date: string) {
   return new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short", timeZone: "UTC" }).format(
@@ -24,11 +25,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const params = await searchParams;
   const addedParam = Number(params.added);
   const addedLimit = Number.isInteger(addedParam) && addedParam > ADDED_INITIAL ? addedParam : ADDED_INITIAL;
-  const [popularRes, addedRes] = await Promise.all([
+  const [popularRes, addedRes, booksRes] = await Promise.all([
     db()
       .from("articles")
       .select(ARTICLE_SUMMARY_COLUMNS)
-      .neq("source", "custom")
+      .not("source", "in", "(custom,book)")
       .order("popular_on", { ascending: false })
       .order("popular_rank", { ascending: true })
       .limit(200),
@@ -38,9 +39,18 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       .eq("source", "custom")
       .order("fetched_at", { ascending: false })
       .limit(addedLimit + 1),
+    db()
+      .from("articles")
+      .select(ARTICLE_SUMMARY_COLUMNS)
+      .eq("source", "book")
+      .order("last_opened_at", { ascending: false, nullsFirst: false })
+      .order("fetched_at", { ascending: false })
+      .limit(BOOKS_SHOWN + 1),
   ]);
   if (popularRes.error) throw popularRes.error;
   if (addedRes.error) throw addedRes.error;
+  if (booksRes.error) throw booksRes.error;
+  const books = (booksRes.data ?? []) as ArticleSummary[];
   const articles = (popularRes.data ?? []) as ArticleSummary[];
   const addedAll = (addedRes.data ?? []) as ArticleSummary[];
   const added = addedAll.slice(0, addedLimit);
@@ -68,6 +78,29 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       )}
 
       {latest && <DayGroup articles={articles.filter((a) => a.popular_on === latest)} />}
+
+      <section className="mt-14">
+        <div className="mb-4 flex items-baseline justify-between gap-4">
+          <h2 className="font-serif text-xl font-semibold">책</h2>
+          <Link href="/books" className="text-sm text-muted underline-offset-4 hover:text-ink hover:underline">
+            {books.length > BOOKS_SHOWN ? "모든 책 보기 ›" : "책 추가 ›"}
+          </Link>
+        </div>
+        {books.length ? (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {books.slice(0, BOOKS_SHOWN).map((b) => (
+              <ArticleCard key={b.id} article={b} showRank={false} />
+            ))}
+          </div>
+        ) : (
+          <Link
+            href="/books"
+            className="block rounded-xl border border-dashed border-line p-6 text-center text-sm text-muted hover:border-ink/40 hover:text-ink"
+          >
+            책을 직접 입력하거나 공개된 책을 검색해서 가져와 읽어보세요.
+          </Link>
+        )}
+      </section>
 
       {added.length > 0 && (
         <section className="mt-14">

@@ -23,11 +23,20 @@ export interface ArticleRow {
   open_count: number;
   read_at: string | null; // "읽었음": set when the reader marks it as read
   reread_at: string | null; // "다시 읽기": picked on 읽은 글 to read again
+  page_count: number; // books only: the text lives in book_pages
+  current_page: number; // books only: the page last opened
 }
 
 export type ArticleSummary = Omit<ArticleRow, "blocks">;
 export const ARTICLE_SUMMARY_COLUMNS =
-  "id, source, url, title, byline, excerpt, image_url, published_at, word_count, popular_on, popular_rank, fetched_at, first_opened_at, last_opened_at, open_count, read_at, reread_at";
+  "id, source, url, title, byline, excerpt, image_url, published_at, word_count, popular_on, popular_rank, fetched_at, first_opened_at, last_opened_at, open_count, read_at, reread_at, page_count, current_page";
+
+export interface BookPageRow {
+  article_id: string;
+  page: number;
+  blocks: Block[];
+  word_count: number;
+}
 
 export interface SavedWordRow {
   id: string;
