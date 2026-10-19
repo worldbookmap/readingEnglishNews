@@ -1,4 +1,6 @@
 import "server-only";
+import { parseHTML } from "linkedom";
+import { htmlToBlocks } from "./bookHtml";
 import type { Block } from "./extract";
 import { db } from "./supabase";
 
@@ -110,14 +112,15 @@ export async function saveBook(book: {
   author: string | null;
   summary: string | null;
   imageUrl: string | null;
-  text: string;
+  text?: string;
   ocr?: boolean;
+  blocks?: Block[]; // already split into paragraphs (HTML books)
 }): Promise<string> {
   const { data: existing, error } = await db().from("articles").select("id").eq("url", book.url).maybeSingle();
   if (error) throw error;
   if (existing) return existing.id as string;
 
-  const pages = paginate(textToBlocks(book.text, { ocr: book.ocr }));
+  const pages = paginate(book.blocks ?? textToBlocks(book.text ?? "", { ocr: book.ocr }));
   const wordCount = countWords(pages.flat());
   if (wordCount < 30) throw new Error("본문이 너무 짧아요");
 
@@ -156,11 +159,11 @@ export async function saveBook(book: {
 // Search and metadata come from gutenberg.org's OPDS (Atom) catalog, which answers in
 // about a second (the Gutendex JSON mirror often takes 30s+).
 
-export type PublicSource = "gutenberg" | "archive";
+export type PublicSource = "gutenberg" | "standard" | "archive";
 
 export interface PublicBook {
   source: PublicSource;
-  id: string; // Gutenberg ebook number or Internet Archive identifier
+  id: string; // Gutenberg ebook number, Standard Ebooks path or Internet Archive identifier
   url: string; // stored as the book's url, so an imported book is recognized
   title: string;
   author: string | null;
@@ -345,5 +348,79 @@ export async function importArchiveBook(identifier: string): Promise<string> {
     imageUrl: `${ARCHIVE}/services/img/${identifier}`,
     text: await textRes.text(),
     ocr: true,
+  });
+}
+
+// ---- Standard Ebooks ----
+// Public-domain books re-edited and proofread from Gutenberg and scans. Each book has a
+// single-page HTML edition, read straight into blocks (chapters stay headings).
+
+const STANDARD = "https://standardebooks.org";
+export const standardUrl = (path: string) => `${STANDARD}/ebooks/${path}`;
+// "jane-austen/mansfield-park", or with translator/illustrator segments.
+export const isStandardId = (id: string) => /^[a-z0-9-]+(\/[a-z0-9-]+){1,4}$/.test(id);
+
+export async function searchStandardEbooks(query: string): Promise<PublicBook[]> {
+  const url = new URL(`${STANDARD}/ebooks`);
+  if (query) url.searchParams.set("query", query);
+  else url.searchParams.set("sort", "popularity");
+  url.searchParams.set("per-page", "24");
+  const res = await fetch(url, { next: { revalidate: 60 * 60 * 24 }, signal: AbortSignal.timeout(15_000) });
+  if (!res.ok) throw new Error(`Standard Ebooks search ${res.status}`);
+  const html = await res.text();
+  return [...html.matchAll(/<li typeof="schema:Book" about="\/ebooks\/([^"]+)">([\s\S]*?)<\/li>/g)].flatMap(([, id, item]) => {
+    if (!isStandardId(id)) return [];
+    const names = [...item.matchAll(/<span property="schema:name">([^<]*)<\/span>/g)].map((m) => decodeXml(m[1]));
+    const cover = /<img src="([^"]+)"/.exec(item)?.[1];
+    return [
+      {
+        source: "standard" as const,
+        id,
+        url: standardUrl(id),
+        title: names[0] ?? id,
+        author: names.slice(1).join(", ") || null,
+        coverUrl: cover ? new URL(cover, STANDARD).href : `${standardUrl(id)}/downloads/cover-thumbnail.jpg`,
+      },
+    ];
+  });
+}
+
+const metaContent = (html: string, attr: string, name: string) =>
+  new RegExp(`<meta content="([^"]*)" ${attr}="${name}"|<meta ${attr}="${name}" content="([^"]*)"`).exec(html)?.slice(1).find(Boolean);
+
+export async function importStandardEbook(path: string): Promise<string> {
+  if (!isStandardId(path)) throw new Error("잘못된 항목이에요");
+  const url = standardUrl(path);
+  const { data: existing, error } = await db().from("articles").select("id").eq("url", url).maybeSingle();
+  if (error) throw error;
+  if (existing) return existing.id as string;
+
+  // The book's page only adds the summary and author; the text is what matters.
+  const [page, textRes] = await Promise.all([
+    fetch(url, { cache: "no-store", signal: AbortSignal.timeout(15_000) })
+      .then((r) => (r.ok ? r.text() : ""))
+      .catch(() => ""),
+    fetch(`${url}/text/single-page`, { cache: "no-store", signal: AbortSignal.timeout(40_000) }),
+  ]);
+  if (!textRes.ok) throw new Error(`Standard Ebooks ${textRes.status}`);
+  const { document } = parseHTML(await textRes.text());
+
+  // Only the book itself: not the title page, imprint, table of contents, colophon or license.
+  const sections = [...document.querySelectorAll("section, article")].filter(
+    (s) => /\bbodymatter\b/.test(s.getAttribute("epub:type") ?? "") && !s.parentElement?.closest("section, article"),
+  );
+  const blocks = sections.length ? sections.flatMap((s) => htmlToBlocks(s)) : htmlToBlocks(document.body);
+
+  // og:title is "Mansfield Park, by Jane Austen - Free ebook download".
+  const ogTitle = decodeXml(metaContent(page, "property", "og:title") ?? "").replace(/ - Free ebook download$/, "");
+  const [, title, author] = /^(.*), by (.*)$/.exec(ogTitle) ?? [null, ogTitle, null];
+  const summary = metaContent(page, "property", "schema:abstract");
+  return saveBook({
+    url,
+    title: title || decodeXml(document.querySelector("title")?.textContent ?? "") || path,
+    author: author || null,
+    summary: summary ? decodeXml(summary) : null,
+    imageUrl: `${url}/downloads/cover-thumbnail.jpg`,
+    blocks,
   });
 }

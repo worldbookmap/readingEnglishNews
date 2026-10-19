@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { AUTH_COOKIE, authToken } from "@/lib/auth";
 import { formatDefinition, lookup, normalizePhrase } from "@/lib/dictionary";
-import { importArchiveBook, importPublicBook, saveBook, type PublicSource } from "@/lib/books";
+import { importArchiveBook, importPublicBook, importStandardEbook, saveBook, type PublicSource } from "@/lib/books";
 import { ingestPopular, ingestUrl } from "@/lib/ingest";
 import { importStudyWords } from "@/lib/studylang";
 import type { Block } from "@/lib/extract";
@@ -118,11 +118,12 @@ export async function addBook(_prev: { error: string | null }, formData: FormDat
   redirect(`/books/${id}`);
 }
 
-// "가져오기" on a Project Gutenberg / Internet Archive search result.
+// "가져오기" on a Project Gutenberg / Standard Ebooks / Internet Archive search result.
 export async function importBook(source: PublicSource, bookId: string): Promise<{ error: string }> {
   let id: string;
   try {
     if (source === "archive") id = await importArchiveBook(bookId);
+    else if (source === "standard") id = await importStandardEbook(bookId);
     else {
       const n = Number(bookId);
       if (!Number.isInteger(n) || n <= 0) return { error: "잘못된 항목이에요" };

@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { AddBookForm } from "@/components/AddBookForm";
 import { ArticleCard } from "@/components/ArticleCard";
 import { ImportBookButton } from "@/components/ImportBookButton";
-import { searchArchiveBooks, searchPublicBooks, type PublicSource } from "@/lib/books";
+import { searchArchiveBooks, searchPublicBooks, searchStandardEbooks, type PublicSource } from "@/lib/books";
 import { ARTICLE_SUMMARY_COLUMNS, db, type ArticleSummary } from "@/lib/supabase";
 
 // Importing a public book downloads and splits a few hundred KB of text.
@@ -17,6 +17,13 @@ const PUBLIC_SOURCES: { id: PublicSource; label: string; home: string; note: str
     home: "https://www.gutenberg.org/",
     note: "저작권이 끝난 영어책을 교정된 텍스트로 가져와요.",
     example: "Pride and Prejudice, Sherlock Holmes",
+  },
+  {
+    id: "standard",
+    label: "Standard Ebooks",
+    home: "https://standardebooks.org/",
+    note: "저작권이 끝난 고전을 다시 교정해서 펴낸 책이에요. 권수는 적지만 텍스트가 가장 깔끔해요.",
+    example: "Mansfield Park, Joseph Conrad",
   },
   {
     id: "archive",
@@ -97,7 +104,7 @@ export default async function BooksPage({ searchParams }: PageProps<"/books">) {
 
       <section className="mt-14">
         <h2 className="mb-1 font-serif text-xl font-semibold">직접 입력</h2>
-        <p className="mb-4 text-sm text-muted">갖고 있는 책이나 글을 붙여넣으면 페이지로 나눠서 기사처럼 읽을 수 있어요.</p>
+        <p className="mb-4 text-sm text-muted">갖고 있는 책이나 글을 붙여넣거나 .txt · .epub · .pdf 파일을 불러오면 페이지로 나눠서 기사처럼 읽을 수 있어요.</p>
         <div className="rounded-2xl border border-line bg-card p-4 sm:p-5">
           <AddBookForm />
         </div>
@@ -120,7 +127,12 @@ async function PublicBookResults({
   }
   let results;
   try {
-    results = source === "archive" ? await searchArchiveBooks(query) : await searchPublicBooks(query);
+    results =
+      source === "archive"
+        ? await searchArchiveBooks(query)
+        : source === "standard"
+          ? await searchStandardEbooks(query)
+          : await searchPublicBooks(query);
   } catch {
     return <p className="rounded-xl border border-dashed border-line p-6 text-center text-sm text-muted">검색하지 못했어요. 잠시 후 다시 시도해주세요.</p>;
   }
