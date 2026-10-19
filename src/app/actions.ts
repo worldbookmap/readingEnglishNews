@@ -140,11 +140,13 @@ export async function importBook(source: PublicSource, bookId: string): Promise<
 }
 
 // Opening a book page counts as 클릭함 and remembers the page to resume from.
-export async function openBookPage(articleId: string, page: number) {
+export async function openBookPage(articleId: string, page: number, remember = true) {
   const [opened, updated] = await Promise.all([
     db().rpc("mark_article_opened", { p_id: articleId }),
     // Moving to another page starts it from the top.
-    db().from("articles").update({ current_page: page, current_block: 0 }).eq("id", articleId).neq("current_page", page),
+    remember
+      ? db().from("articles").update({ current_page: page, current_block: 0 }).eq("id", articleId).neq("current_page", page)
+      : { error: null },
   ]);
   if (opened.error) throw opened.error;
   if (updated.error) throw updated.error;

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { readingMinutes } from "@/components/ArticleCard";
 import { DeleteArticleButton } from "@/components/DeleteArticleButton";
+import { JumpToBlock } from "@/components/JumpToBlock";
 import { OpenBookPage } from "@/components/OpenBookPage";
 import { Pagination } from "@/components/Pagination";
 import { ReadToggle } from "@/components/ReadToggle";
@@ -25,8 +26,10 @@ export default async function BookPage({ params, searchParams }: PageProps<"/boo
   if (!book.data) notFound();
   const b = book.data as ArticleSummary;
 
-  // Without ?page=, resume where the reader left off.
-  const requested = Number((await searchParams).page);
+  // Without ?page=, resume where the reader left off. ?block=&q= come from a search result.
+  const query = await searchParams;
+  const requested = Number(query.page);
+  const jumpTo = query.block !== undefined ? Number(query.block) || 0 : null;
   const page = Math.min(Math.max(Number.isInteger(requested) ? requested : b.current_page, 1), Math.max(b.page_count, 1));
 
   const [pageRes, words, sentences] = await Promise.all([
@@ -40,7 +43,7 @@ export default async function BookPage({ params, searchParams }: PageProps<"/boo
 
   return (
     <article className="mx-auto max-w-2xl">
-      <OpenBookPage articleId={id} page={page} />
+      <OpenBookPage articleId={id} page={page} remember={jumpTo === null} />
       <header className="mb-8 border-b border-line pb-6">
         <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
           <span className="font-semibold uppercase tracking-wide text-accent">책</span>
@@ -92,12 +95,16 @@ export default async function BookPage({ params, searchParams }: PageProps<"/boo
             initialWords={(words.data ?? []) as SavedWordRow[]}
             initialSentences={(sentences.data ?? []) as SavedSentenceRow[]}
           />
-          <ReadingPosition
-            key={`position-${page}`}
-            articleId={id}
-            page={page}
-            resumeBlock={page === b.current_page ? b.current_block : 0}
-          />
+          {jumpTo === null ? (
+            <ReadingPosition
+              key={`position-${page}`}
+              articleId={id}
+              page={page}
+              resumeBlock={page === b.current_page ? b.current_block : 0}
+            />
+          ) : (
+            <JumpToBlock key={`jump-${page}-${jumpTo}`} block={jumpTo} q={String(query.q ?? "")} />
+          )}
         </>
       ) : (
         <p className="rounded-xl border border-dashed border-line p-8 text-center text-muted">이 페이지를 찾을 수 없어요.</p>

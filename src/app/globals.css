@@ -72,3 +72,12 @@ body {
   background: var(--accent-soft);
   border-radius: 3px;
 }
+
+/* Opened from a search result: the matching paragraph and the search term. */
+.reader .search-target {
+  box-shadow: -14px 0 0 -10px var(--accent);
+}
+::highlight(search) {
+  background-color: var(--word-mark);
+  color: var(--ink);
+}

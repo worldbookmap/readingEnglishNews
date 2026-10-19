@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/history", label: "읽은 글" },
   { href: "/words", label: "단어·문장" },
   { href: "/memorize", label: "암기장" },
+  { href: "/search", label: "검색" },
 ];
 
 export function Nav() {

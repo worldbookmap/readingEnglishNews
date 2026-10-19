@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { formatDate, readingMinutes } from "@/components/ArticleCard";
 import { DeleteArticleButton } from "@/components/DeleteArticleButton";
+import { JumpToBlock } from "@/components/JumpToBlock";
 import { MarkOpened } from "@/components/MarkOpened";
 import { PasteBody } from "@/components/PasteBody";
 import { ReadToggle } from "@/components/ReadToggle";
@@ -9,8 +10,10 @@ import { Reader } from "@/components/Reader";
 import { SOURCE_LABELS } from "@/lib/sources";
 import { db, type ArticleRow, type SavedSentenceRow, type SavedWordRow } from "@/lib/supabase";
 
-export default async function ArticlePage({ params }: PageProps<"/articles/[id]">) {
+export default async function ArticlePage({ params, searchParams }: PageProps<"/articles/[id]">) {
   const { id } = await params;
+  // ?block=&q= when opened from a search result.
+  const { block, q } = await searchParams;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
 
   const [article, words, sentences] = await Promise.all([
@@ -68,6 +71,7 @@ export default async function ArticlePage({ params }: PageProps<"/articles/[id]"
             initialWords={(words.data ?? []) as SavedWordRow[]}
             initialSentences={(sentences.data ?? []) as SavedSentenceRow[]}
           />
+          {block !== undefined && <JumpToBlock block={Number(block) || 0} q={String(q ?? "")} />}
           <div className="mt-10">
             <ReadToggle articleId={a.id} readAt={a.read_at} size="lg" />
           </div>
