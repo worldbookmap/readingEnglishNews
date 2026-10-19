@@ -142,13 +142,22 @@ export async function importBook(source: PublicSource, bookId: string): Promise<
 export async function openBookPage(articleId: string, page: number) {
   const [opened, updated] = await Promise.all([
     db().rpc("mark_article_opened", { p_id: articleId }),
-    db().from("articles").update({ current_page: page }).eq("id", articleId),
+    // Moving to another page starts it from the top.
+    db().from("articles").update({ current_page: page, current_block: 0 }).eq("id", articleId).neq("current_page", page),
   ]);
   if (opened.error) throw opened.error;
   if (updated.error) throw updated.error;
   revalidatePath("/");
   revalidatePath("/books");
   revalidatePath("/history");
+}
+
+// Saved while scrolling a book page. No revalidation: it would re-render the page
+// being read, and the book lists only show the page number (kept fresh by openBookPage).
+export async function saveBookPosition(articleId: string, page: number, block: number) {
+  if (!Number.isInteger(page) || !Number.isInteger(block) || page < 1 || block < 0) return;
+  const { error } = await db().from("articles").update({ current_page: page, current_block: block }).eq("id", articleId);
+  if (error) throw error;
 }
 
 export async function saveWord(input: {

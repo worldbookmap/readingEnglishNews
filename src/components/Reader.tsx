@@ -244,7 +244,7 @@ const Body = memo(function Body({
       {parsed.map((b, i) => {
         if (b.type === "img") {
           return (
-            <figure key={i} className="my-8">
+            <figure key={i} data-block={i} className="my-8">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={b.src} alt={b.caption ?? ""} loading="lazy" className="w-full rounded-lg" />
               {b.caption && <figcaption className="mt-2 font-sans text-xs text-muted">{b.caption}</figcaption>}
@@ -270,22 +270,22 @@ const Body = memo(function Body({
             </span>
           );
         });
-        if (b.type === "h") return <h2 key={i} className="mt-10 mb-4 text-[1.35rem] leading-snug font-semibold">{content}</h2>;
+        if (b.type === "h") return <h2 key={i} data-block={i} className="mt-10 mb-4 text-[1.35rem] leading-snug font-semibold">{content}</h2>;
         if (b.type === "quote")
           return (
-            <blockquote key={i} className="my-6 border-l-2 border-accent pl-5 italic text-ink/85">
+            <blockquote key={i} data-block={i} className="my-6 border-l-2 border-accent pl-5 italic text-ink/85">
               {content}
             </blockquote>
           );
         if (b.type === "li")
           return (
-            <p key={i} className="my-3 pl-5 -indent-4">
+            <p key={i} data-block={i} className="my-3 pl-5 -indent-4">
               <span className="mr-2 text-accent">•</span>
               {content}
             </p>
           );
         return (
-          <p key={i} className="my-5">
+          <p key={i} data-block={i} className="my-5">
             {content}
           </p>
         );

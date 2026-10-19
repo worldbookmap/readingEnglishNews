@@ -25,11 +25,12 @@ export interface ArticleRow {
   reread_at: string | null; // "다시 읽기": picked on 읽은 글 to read again
   page_count: number; // books only: the text lives in book_pages
   current_page: number; // books only: the page last opened
+  current_block: number; // books only: the paragraph at the top of the screen on that page
 }
 
 export type ArticleSummary = Omit<ArticleRow, "blocks">;
 export const ARTICLE_SUMMARY_COLUMNS =
-  "id, source, url, title, byline, excerpt, image_url, published_at, word_count, popular_on, popular_rank, fetched_at, first_opened_at, last_opened_at, open_count, read_at, reread_at, page_count, current_page";
+  "id, source, url, title, byline, excerpt, image_url, published_at, word_count, popular_on, popular_rank, fetched_at, first_opened_at, last_opened_at, open_count, read_at, reread_at, page_count, current_page, current_block";
 
 export interface BookPageRow {
   article_id: string;

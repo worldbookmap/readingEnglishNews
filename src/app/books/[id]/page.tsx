@@ -6,6 +6,7 @@ import { Pagination } from "@/components/Pagination";
 import { ReadToggle } from "@/components/ReadToggle";
 import { RereadToggle } from "@/components/RereadToggle";
 import { Reader } from "@/components/Reader";
+import { ReadingPosition } from "@/components/ReadingPosition";
 import {
   ARTICLE_SUMMARY_COLUMNS,
   db,
@@ -78,13 +79,21 @@ export default async function BookPage({ params, searchParams }: PageProps<"/boo
       </header>
 
       {p ? (
-        <Reader
-          key={page}
-          articleId={id}
-          blocks={p.blocks}
-          initialWords={(words.data ?? []) as SavedWordRow[]}
-          initialSentences={(sentences.data ?? []) as SavedSentenceRow[]}
-        />
+        <>
+          <Reader
+            key={page}
+            articleId={id}
+            blocks={p.blocks}
+            initialWords={(words.data ?? []) as SavedWordRow[]}
+            initialSentences={(sentences.data ?? []) as SavedSentenceRow[]}
+          />
+          <ReadingPosition
+            key={`position-${page}`}
+            articleId={id}
+            page={page}
+            resumeBlock={page === b.current_page ? b.current_block : 0}
+          />
+        </>
       ) : (
         <p className="rounded-xl border border-dashed border-line p-8 text-center text-muted">이 페이지를 찾을 수 없어요.</p>
       )}
