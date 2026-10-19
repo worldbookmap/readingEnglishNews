@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { AddBookForm } from "@/components/AddBookForm";
 import { ArticleCard } from "@/components/ArticleCard";
 import { ImportBookButton } from "@/components/ImportBookButton";
-import { searchArchiveBooks, searchPublicBooks, searchStandardEbooks, type PublicSource } from "@/lib/books";
+import { fillMissingCovers, searchArchiveBooks, searchPublicBooks, searchStandardEbooks, type PublicSource } from "@/lib/books";
 import { ARTICLE_SUMMARY_COLUMNS, db, type ArticleSummary } from "@/lib/supabase";
 
 // Importing a public book downloads and splits a few hundred KB of text.
@@ -46,7 +46,7 @@ export default async function BooksPage({ searchParams }: PageProps<"/books">) {
     .order("last_opened_at", { ascending: false, nullsFirst: false })
     .order("fetched_at", { ascending: false });
   if (error) throw error;
-  const books = (data ?? []) as ArticleSummary[];
+  const books = await fillMissingCovers((data ?? []) as ArticleSummary[]);
 
   return (
     <div>

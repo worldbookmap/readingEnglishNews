@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SOURCE_LABELS } from "@/lib/sources";
+import { BookCover } from "./BookCover";
 import type { ArticleSummary } from "@/lib/supabase";
 
 export function formatDate(iso: string | null, withTime = false) {
@@ -29,6 +30,7 @@ export function ArticleCard({ article, showRank = true }: { article: ArticleSumm
       href={isBook ? `/books/${article.id}` : `/articles/${article.id}`}
       className="group flex gap-4 rounded-xl border border-line bg-card p-3 transition-colors hover:border-ink/30 sm:p-4"
     >
+      {isBook && <BookCover src={article.image_url} title={article.title} className="h-24 w-16" />}
       {showRank && (
         <span className="w-6 shrink-0 pt-0.5 text-right font-serif text-2xl font-semibold text-accent tabular-nums">
           {article.popular_rank}
@@ -47,13 +49,13 @@ export function ArticleCard({ article, showRank = true }: { article: ArticleSumm
         {isBook && article.byline && <p className="mt-0.5 text-sm text-muted">{article.byline}</p>}
         {article.excerpt && <p className="mt-1 line-clamp-2 text-sm text-muted">{article.excerpt}</p>}
       </div>
-      {article.image_url && (
+      {!isBook && article.image_url && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={article.image_url}
           alt=""
           loading="lazy"
-          className={`hidden shrink-0 rounded-lg object-cover sm:block ${isBook ? "h-24 w-16" : "h-20 w-28"}`}
+          className="hidden h-20 w-28 shrink-0 rounded-lg object-cover sm:block"
         />
       )}
     </Link>

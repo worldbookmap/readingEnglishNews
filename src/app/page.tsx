@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { AddArticleForm } from "@/components/AddArticleForm";
 import { ArticleCard } from "@/components/ArticleCard";
 import { FetchNowButton } from "@/components/FetchNowButton";
+import { fillMissingCovers } from "@/lib/books";
 import { SOURCE_LABELS, SOURCES } from "@/lib/sources";
 import { ARTICLE_SUMMARY_COLUMNS, db, type ArticleSummary } from "@/lib/supabase";
 
@@ -50,7 +51,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   if (popularRes.error) throw popularRes.error;
   if (addedRes.error) throw addedRes.error;
   if (booksRes.error) throw booksRes.error;
-  const books = (booksRes.data ?? []) as ArticleSummary[];
+  const books = await fillMissingCovers((booksRes.data ?? []) as ArticleSummary[]);
   const articles = (popularRes.data ?? []) as ArticleSummary[];
   const addedAll = (addedRes.data ?? []) as ArticleSummary[];
   const added = addedAll.slice(0, addedLimit);

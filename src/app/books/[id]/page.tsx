@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { readingMinutes } from "@/components/ArticleCard";
+import { BookCover } from "@/components/BookCover";
 import { DeleteArticleButton } from "@/components/DeleteArticleButton";
 import { JumpToBlock } from "@/components/JumpToBlock";
 import { OpenBookPage } from "@/components/OpenBookPage";
@@ -56,8 +57,13 @@ export default async function BookPage({ params, searchParams }: PageProps<"/boo
             {page}/{b.page_count}페이지 {p ? `(${readingMinutes(p.word_count)}분)` : ""}
           </span>
         </div>
-        <h1 className="font-serif text-3xl leading-tight font-semibold tracking-tight wrap-anywhere sm:text-4xl">{b.title}</h1>
-        {b.byline && <p className="mt-3 text-sm text-muted">{b.byline}</p>}
+        <div className="flex items-start gap-4 sm:gap-5">
+          <BookCover src={b.image_url} title={b.title} className="h-30 w-20 sm:h-36 sm:w-24" />
+          <div className="min-w-0">
+            <h1 className="font-serif text-3xl leading-tight font-semibold tracking-tight wrap-anywhere sm:text-4xl">{b.title}</h1>
+            {b.byline && <p className="mt-3 text-sm text-muted">{b.byline}</p>}
+          </div>
+        </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           {b.url.startsWith("http") ? (
             <a href={b.url} target="_blank" rel="noreferrer" className="text-sm text-muted underline underline-offset-4 hover:text-ink">

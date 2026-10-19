@@ -1,6 +1,7 @@
 import "server-only";
 import { parseHTML } from "linkedom";
 import { htmlToBlocks } from "./bookHtml";
+import { findCover } from "./covers";
 import type { Block } from "./extract";
 import { db } from "./supabase";
 
@@ -124,6 +125,9 @@ export async function saveBook(book: {
   const wordCount = countWords(pages.flat());
   if (wordCount < 30) throw new Error("본문이 너무 짧아요");
 
+  // Books typed in or loaded from a file get a cover from the web; "" = none found.
+  const imageUrl = book.imageUrl ?? (await findCover(book.title, book.author)) ?? "";
+
   const { data, error: insertError } = await db()
     .from("articles")
     .insert({
@@ -132,7 +136,7 @@ export async function saveBook(book: {
       title: book.title,
       byline: book.author,
       excerpt: book.summary,
-      image_url: book.imageUrl,
+      image_url: imageUrl,
       blocks: [],
       word_count: wordCount,
       page_count: pages.length,
@@ -153,6 +157,24 @@ export async function saveBook(book: {
     }
   }
   return id;
+}
+
+// Books saved before covers were looked up have image_url null: look them up once.
+export async function fillMissingCovers<T extends { id: string; title: string; byline: string | null; image_url: string | null }>(
+  books: T[],
+): Promise<T[]> {
+  const missing = books.filter((b) => b.image_url === null);
+  if (!missing.length) return books;
+  const found = new Map(
+    await Promise.all(
+      missing.map(async (b) => {
+        const url = (await findCover(b.title, b.byline)) ?? "";
+        await db().from("articles").update({ image_url: url }).eq("id", b.id).is("image_url", null);
+        return [b.id, url] as const;
+      }),
+    ),
+  );
+  return books.map((b) => (found.has(b.id) ? { ...b, image_url: found.get(b.id)! } : b));
 }
 
 // ---- Project Gutenberg ----
