@@ -57,7 +57,7 @@ export default async function BookPage({ params, searchParams }: PageProps<"/boo
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           {b.url.startsWith("http") ? (
             <a href={b.url} target="_blank" rel="noreferrer" className="text-sm text-muted underline underline-offset-4 hover:text-ink">
-              Project Gutenberg ↗
+              {b.url.startsWith("https://archive.org/") ? "Internet Archive" : "Project Gutenberg"} ↗
             </a>
           ) : (
             <span />

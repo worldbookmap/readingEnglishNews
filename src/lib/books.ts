@@ -10,12 +10,32 @@ const CHAPTER_BREAK_WORDS = 600;
 const countWords = (blocks: Block[]) =>
   blocks.reduce((n, b) => (b.type === "img" ? n : n + b.text.split(/\s+/).filter(Boolean).length), 0);
 
-const CHAPTER = /^(chapter|book|part|volume|vol\.|act|scene|letter|stave|canto|prologue|epilogue|preface|introduction)\b|^[ivxlcdm]+\.?$|^\d+\.?$/i;
+const CHAPTER = /^(chapt\w*|book|part|volume|vol\.|act|scene|letter|stave|canto|prologue|epilogue|preface|introduction)\b|^[ivxlcdm]+\.?$|^\d+\.?$/i;
+
+// Joins wrapped lines; with `ocr`, a word hyphenated across lines ("sore-" / "ness")
+// is put back together.
+function joinLines(lines: string[], ocr: boolean): string {
+  let out = "";
+  for (const line of lines) {
+    if (ocr && /[a-z]-$/.test(out) && /^[a-z]/.test(line)) out = out.slice(0, -1) + line;
+    else out = out ? `${out} ${line}` : line;
+  }
+  return out;
+}
+
+// Scanned books (Internet Archive OCR) print a running head and page number on every
+// page — "xvi  JANE   EYRE", "INTRODUCTION  xv", "JANE EYEE 145" (OCR mangles them, so
+// they don't repeat exactly) — and a printer's signature mark ("D") as lines of their own.
+const PAGE_NUMBER = /^(\d+|[ivxlc]{2,})\b|\b(\d+|[ivxlc]{2,})\.?$/i;
+function isPageFurniture(line: string): boolean {
+  if (line.length <= 3) return true;
+  return line.length <= 50 && line.split(" ").length <= 6 && PAGE_NUMBER.test(line) && !/^(chapt|book|part|vol|act|canto|letter)/i.test(line);
+}
 
 // Plain text → paragraphs. Handles both hard-wrapped text (Project Gutenberg: lines of
 // ~70 characters, paragraphs separated by blank lines) and text copied from a web page
-// or document (one paragraph per line).
-export function textToBlocks(raw: string): Block[] {
+// or document (one paragraph per line). `ocr` adds cleanup for scanned books.
+export function textToBlocks(raw: string, { ocr = false } = {}): Block[] {
   let text = raw.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
   // Project Gutenberg wraps the book in a license header and footer.
   const start = /^\*\*\* ?START OF (THE|THIS) PROJECT GUTENBERG.*$/im.exec(text);
@@ -25,24 +45,39 @@ export function textToBlocks(raw: string): Block[] {
   // "[Illustration: ...]" notes can span several lines and paragraphs.
   text = text.replace(/\[(illustration|picture)[^\]]*\]/gi, "");
 
+  let chunks = text
+    .split(/\n\s*\n/)
+    .map((chunk) => chunk.split("\n").map((l) => l.replace(/\s+/g, " ").trim()).filter(Boolean))
+    .filter((lines) => lines.length);
+
+  if (ocr) chunks = chunks.filter((lines) => !(lines.length === 1 && isPageFurniture(lines[0])));
+
   const paragraphs: string[] = [];
-  for (const chunk of text.split(/\n\s*\n/)) {
-    const lines = chunk.split("\n").map((l) => l.trim()).filter(Boolean);
-    if (!lines.length) continue;
+  for (const lines of chunks) {
     // Long lines mean the text isn't hard-wrapped: each line is its own paragraph.
     if (lines.some((l) => l.length > 120)) paragraphs.push(...lines);
-    else paragraphs.push(lines.join(" "));
+    else {
+      const p = joinLines(lines, ocr);
+      // OCR splits paragraphs at page breaks (and sometimes mid-page): a paragraph that
+      // stops mid-sentence, or one that continues in lower case, belongs to the previous one.
+      const prev = paragraphs.at(-1);
+      if (ocr && prev && (/[a-z,;—-]$/.test(prev) || (prev.length > 70 && !/[.!?"”’':)]$/.test(prev) && /^[a-z]/.test(p)))) {
+        paragraphs[paragraphs.length - 1] = joinLines([prev, p], true);
+      } else paragraphs.push(p);
+    }
   }
 
   const blocks: Block[] = [];
   for (const p of paragraphs) {
-    const t = p
+    let t = p
       .replace(/_([^_]+)_/g, "$1") // Gutenberg's _italics_
       .replace(/--/g, "—")
       .replace(/\s+/g, " ")
       .trim();
+    // OCR keeps the typesetter's spaces before punctuation: "Lewes ;" → "Lewes;"
+    if (ocr) t = t.replace(/ ([;:,.!?])/g, "$1").replace(/(^|\s)' (?=\w)/g, "$1'");
     if (!t || /^[*\s.]+$/.test(t)) continue;
-    const heading = t.length < 70 && (CHAPTER.test(t) || !/[.!?"”’:;,)]$/.test(t)) && t.split(" ").length <= 10;
+    const heading = t.length < 70 && (CHAPTER.test(t) || !/[.!?"”’'‘:;,)]$/.test(t)) && t.split(" ").length <= 10;
     blocks.push({ type: heading ? "h" : "p", text: t });
   }
   return blocks;
@@ -76,12 +111,13 @@ export async function saveBook(book: {
   summary: string | null;
   imageUrl: string | null;
   text: string;
+  ocr?: boolean;
 }): Promise<string> {
   const { data: existing, error } = await db().from("articles").select("id").eq("url", book.url).maybeSingle();
   if (error) throw error;
   if (existing) return existing.id as string;
 
-  const pages = paginate(textToBlocks(book.text));
+  const pages = paginate(textToBlocks(book.text, { ocr: book.ocr }));
   const wordCount = countWords(pages.flat());
   if (wordCount < 30) throw new Error("본문이 너무 짧아요");
 
@@ -120,16 +156,21 @@ export async function saveBook(book: {
 // Search and metadata come from gutenberg.org's OPDS (Atom) catalog, which answers in
 // about a second (the Gutendex JSON mirror often takes 30s+).
 
+export type PublicSource = "gutenberg" | "archive";
+
 export interface PublicBook {
-  id: number;
+  source: PublicSource;
+  id: string; // Gutenberg ebook number or Internet Archive identifier
+  url: string; // stored as the book's url, so an imported book is recognized
   title: string;
   author: string | null;
   coverUrl: string;
+  year?: string | null;
 }
 
 const GUTENBERG = "https://www.gutenberg.org";
 export const gutenbergUrl = (id: number) => `${GUTENBERG}/ebooks/${id}`;
-const coverUrl = (id: number) => `${GUTENBERG}/cache/epub/${id}/pg${id}.cover.medium.jpg`;
+const coverUrl = (id: number | string) => `${GUTENBERG}/cache/epub/${id}/pg${id}.cover.medium.jpg`;
 
 const decodeXml = (s: string) =>
   s
@@ -162,7 +203,16 @@ export async function searchPublicBooks(query: string): Promise<PublicBook[]> {
     const id = Number(/<id>[^<]*\/ebooks\/(\d+)\.opds<\/id>/.exec(entry)?.[1]);
     if (!id) return []; // "Subjects" / "Authors" sub-listings
     const author = decodeXml(/<content[^>]*>([\s\S]*?)<\/content>/.exec(entry)?.[1] ?? "");
-    return [{ id, title: decodeXml(/<title>([\s\S]*?)<\/title>/.exec(entry)?.[1] ?? ""), author: author || null, coverUrl: coverUrl(id) }];
+    return [
+      {
+        source: "gutenberg" as const,
+        id: String(id),
+        url: gutenbergUrl(id),
+        title: decodeXml(/<title>([\s\S]*?)<\/title>/.exec(entry)?.[1] ?? ""),
+        author: author || null,
+        coverUrl: coverUrl(id),
+      },
+    ];
   });
 }
 
@@ -204,5 +254,96 @@ export async function importPublicBook(gutenbergId: number): Promise<string> {
     summary: info?.summary ?? null,
     imageUrl: coverUrl(gutenbergId),
     text,
+  });
+}
+
+// ---- Internet Archive ----
+// Scanned books with an OCR text file (`*_djvu.txt`). Items that are only lent out
+// (in copyright) are excluded; their text file can't be downloaded.
+
+const ARCHIVE = "https://archive.org";
+export const archiveUrl = (identifier: string) => `${ARCHIVE}/details/${identifier}`;
+export const isArchiveId = (id: string) => /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(id);
+const MAX_TEXT_BYTES = 8 * 1024 * 1024;
+
+// "Brontë, Charlotte, 1816-1855" → "Charlotte Brontë"
+const archiveCreator = (c: unknown) =>
+  (Array.isArray(c) ? c : c ? [c] : [])
+    .map((n) => String(n).replace(/,?\s*(b\.\s*|ca\.\s*)?\d{4}.*$/, "").replace(/^([^,]+), ([^,]+)$/, "$2 $1").trim())
+    .filter(Boolean)
+    .join(", ") || null;
+
+const first = (v: unknown) => (Array.isArray(v) ? v[0] : v) as string | undefined;
+
+export async function searchArchiveBooks(query: string): Promise<PublicBook[]> {
+  const terms = query.replace(/[^\p{L}\p{N}\s'-]/gu, " ").trim();
+  if (!terms) return [];
+  const q = [
+    `(title:(${terms}) OR creator:(${terms}))`,
+    "mediatype:texts",
+    "format:DjVuTXT",
+    "language:(eng OR English)",
+    "-access-restricted-item:true",
+    "-collection:(inlibrary OR printdisabled)",
+  ].join(" AND ");
+  const url = new URL(`${ARCHIVE}/advancedsearch.php`);
+  url.searchParams.set("q", q);
+  for (const f of ["identifier", "title", "creator", "year"]) url.searchParams.append("fl[]", f);
+  url.searchParams.append("sort[]", "downloads desc");
+  url.searchParams.set("rows", "30");
+  url.searchParams.set("output", "json");
+  const res = await fetch(url, { next: { revalidate: 60 * 60 * 24 }, signal: AbortSignal.timeout(15_000) });
+  if (!res.ok) throw new Error(`archive.org search ${res.status}`);
+  const json = (await res.json()) as { response: { docs: Record<string, unknown>[] } };
+  return json.response.docs.map((d) => {
+    const id = String(d.identifier);
+    return {
+      source: "archive" as const,
+      id,
+      url: archiveUrl(id),
+      title: String(first(d.title) ?? id).replace(/\s+/g, " ").trim(),
+      author: archiveCreator(d.creator),
+      coverUrl: `${ARCHIVE}/services/img/${id}`,
+      year: d.year ? String(first(d.year)) : null,
+    };
+  });
+}
+
+export async function importArchiveBook(identifier: string): Promise<string> {
+  if (!isArchiveId(identifier)) throw new Error("잘못된 항목이에요");
+  const url = archiveUrl(identifier);
+  const { data: existing, error } = await db().from("articles").select("id").eq("url", url).maybeSingle();
+  if (error) throw error;
+  if (existing) return existing.id as string;
+
+  const res = await fetch(`${ARCHIVE}/metadata/${identifier}`, { cache: "no-store", signal: AbortSignal.timeout(15_000) });
+  if (!res.ok) throw new Error(`archive.org metadata ${res.status}`);
+  const item = (await res.json()) as {
+    metadata?: Record<string, unknown>;
+    files?: { name: string; format?: string; size?: string }[];
+  };
+  const m = item.metadata ?? {};
+  if (m["access-restricted-item"] === "true") throw new Error("대출 전용 책이라 가져올 수 없어요");
+  // A multi-volume item has one OCR file per volume; take the largest.
+  const file = (item.files ?? [])
+    .filter((f) => f.format === "DjVuTXT" || f.name.endsWith("_djvu.txt"))
+    .sort((a, b) => Number(b.size ?? 0) - Number(a.size ?? 0))[0];
+  if (!file) throw new Error("이 항목에는 텍스트 파일이 없어요");
+  if (Number(file.size ?? 0) > MAX_TEXT_BYTES) throw new Error("책이 너무 커요");
+
+  const textRes = await fetch(`${ARCHIVE}/download/${identifier}/${encodeURIComponent(file.name)}`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(40_000),
+  });
+  if (!textRes.ok) throw new Error(`archive.org text ${textRes.status}`);
+  const description = first(m.description);
+  return saveBook({
+    url,
+    title: String(first(m.title) ?? identifier).replace(/\s+/g, " ").trim(),
+    author: archiveCreator(m.creator),
+    summary: description ? decodeXml(description).slice(0, 600) || null : null,
+    imageUrl: `${ARCHIVE}/services/img/${identifier}`,
+    text: await textRes.text(),
+    ocr: true,
   });
 }

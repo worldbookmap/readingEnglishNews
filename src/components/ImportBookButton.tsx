@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { importBook } from "@/app/actions";
+import type { PublicSource } from "@/lib/books";
 
-// Imports a Project Gutenberg book; the server action opens it when done.
-export function ImportBookButton({ gutenbergId, imported }: { gutenbergId: number; imported: boolean }) {
+// Imports a public book; the server action opens it when done.
+export function ImportBookButton({ source, bookId, imported }: { source: PublicSource; bookId: string; imported: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -16,7 +17,7 @@ export function ImportBookButton({ gutenbergId, imported }: { gutenbergId: numbe
         onClick={() =>
           start(async () => {
             setError(null);
-            const res = await importBook(gutenbergId);
+            const res = await importBook(source, bookId);
             if (res?.error) setError(res.error);
           })
         }

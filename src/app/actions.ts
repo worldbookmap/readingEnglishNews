@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { AUTH_COOKIE, authToken } from "@/lib/auth";
 import { formatDefinition, lookup, normalizePhrase } from "@/lib/dictionary";
-import { importPublicBook, saveBook } from "@/lib/books";
+import { importArchiveBook, importPublicBook, saveBook, type PublicSource } from "@/lib/books";
 import { ingestPopular, ingestUrl } from "@/lib/ingest";
 import { importStudyWords } from "@/lib/studylang";
 import type { Block } from "@/lib/extract";
@@ -118,13 +118,20 @@ export async function addBook(_prev: { error: string | null }, formData: FormDat
   redirect(`/books/${id}`);
 }
 
-// "가져오기" on a Project Gutenberg search result.
-export async function importBook(gutenbergId: number): Promise<{ error: string }> {
+// "가져오기" on a Project Gutenberg / Internet Archive search result.
+export async function importBook(source: PublicSource, bookId: string): Promise<{ error: string }> {
   let id: string;
   try {
-    id = await importPublicBook(gutenbergId);
-  } catch {
-    return { error: "가져오지 못했어요. 잠시 후 다시 시도해주세요" };
+    if (source === "archive") id = await importArchiveBook(bookId);
+    else {
+      const n = Number(bookId);
+      if (!Number.isInteger(n) || n <= 0) return { error: "잘못된 항목이에요" };
+      id = await importPublicBook(n);
+    }
+  } catch (e) {
+    // Messages written for the reader are in Korean; anything else is a network/API error.
+    const message = e instanceof Error && /[가-힣]/.test(e.message) ? e.message : "가져오지 못했어요. 잠시 후 다시 시도해주세요";
+    return { error: message };
   }
   revalidatePath("/");
   revalidatePath("/books");
