@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { AUTH_COOKIE, authToken } from "@/lib/auth";
 import { formatDefinition, lookup, normalizePhrase } from "@/lib/dictionary";
 import { importArchiveBook, importPublicBook, importStandardEbook, saveBook, type PublicSource } from "@/lib/books";
+import { analyze, GRAMMAR_MODEL, MAX_GRAMMAR_CHARS, type Grammar } from "@/lib/grammar";
 import { ingestPopular, ingestUrl } from "@/lib/ingest";
 import { importStudyWords } from "@/lib/studylang";
 import type { Block } from "@/lib/extract";
@@ -242,6 +243,21 @@ export async function updateSentenceNote(id: string, note: string) {
   const { error } = await db().from("saved_sentences").update({ note: note.trim() || null }).eq("id", id);
   if (error) throw error;
   revalidatePath("/words");
+}
+
+// "문법 분석" on a dragged sentence. Each sentence is sent to Claude once; later requests
+// come from grammar_analyses.
+export async function analyzeGrammar(text: string): Promise<{ grammar: Grammar } | { error: string }> {
+  const sentence = text.replace(/\s+/g, " ").trim();
+  if (!sentence) return { error: "분석할 문장이 없어요" };
+  if (sentence.length > MAX_GRAMMAR_CHARS) return { error: "너무 길어요. 한두 문장만 선택해주세요" };
+  const cached = await db().from("grammar_analyses").select("result").eq("sentence", sentence).maybeSingle();
+  if (cached.error) throw cached.error;
+  if (cached.data) return { grammar: cached.data.result as Grammar };
+  const grammar = await analyze(sentence);
+  const { error } = await db().from("grammar_analyses").upsert({ sentence, result: grammar, model: GRAMMAR_MODEL });
+  if (error) throw error;
+  return { grammar };
 }
 
 // Manual "fetch now" button on the home page (the daily cron does the same thing).

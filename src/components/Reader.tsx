@@ -1,9 +1,10 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { removeSentence, removeWord, saveSentence, saveWord, updateWordNote } from "@/app/actions";
+import { analyzeGrammar, removeSentence, removeWord, saveSentence, saveWord, updateWordNote } from "@/app/actions";
 import { formatDefinition, lookup, naverDictUrl, normalizePhrase, normalizeWord, playphraseUrl, youglishUrl, type Definition } from "@/lib/dictionary";
 import type { Block } from "@/lib/extract";
+import type { Grammar } from "@/lib/grammar";
 import type { SavedSentenceRow, SavedWordRow } from "@/lib/supabase";
 import { splitSentences, splitWords, type Token } from "@/lib/tokenize";
 import { SpeakButton, VoicePicker } from "./SpeakButton";
@@ -36,6 +37,7 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
   const [sentences, setSentences] = useState(() => new Map(initialSentences.map((s) => [s.text, s])));
   const [active, setActive] = useState<Active | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [grammarFor, setGrammarFor] = useState<string | null>(null); // text shown in the grammar panel
   const [toast, setToast] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   // While a finger/mouse is on the selection bar: a tap there can collapse the text
@@ -93,7 +95,11 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
   }, []);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setActive(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setActive(null);
+      setGrammarFor(null);
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
@@ -102,6 +108,7 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
     const sel = window.getSelection();
     if (sel && !sel.isCollapsed) return; // finishing a drag-selection, not a click
     const el = (e.target as HTMLElement).closest<HTMLElement>(".w");
+    setGrammarFor(null);
     if (!el) {
       setActive(null);
       return;
@@ -141,7 +148,7 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
 
       <SavedSummary words={[...words.values()]} sentences={[...sentences.values()]} />
 
-      {selection && !active && (
+      {selection && !active && !grammarFor && (
         <SelectionBar
           pressRef={barPressRef}
           text={selection.text}
@@ -151,6 +158,10 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
             await doSaveSentence(selection.text);
             window.getSelection()?.removeAllRanges();
             setSelection(null);
+          }}
+          onAnalyze={() => {
+            setGrammarFor(selection.text);
+            window.getSelection()?.removeAllRanges();
           }}
           onOpenPhrase={
             selection.phrase &&
@@ -204,6 +215,17 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
           onToggleSentence={() =>
             sentences.has(active.sentence) ? doRemoveSentence(active.sentence) : doSaveSentence(active.sentence)
           }
+        />
+      )}
+
+      {grammarFor && !active && (
+        <GrammarPanel
+          key={grammarFor}
+          text={grammarFor}
+          saved={sentences.has(grammarFor)}
+          onClose={() => setGrammarFor(null)}
+          onSave={() => doSaveSentence(grammarFor)}
+          onError={onError}
         />
       )}
 
@@ -454,6 +476,7 @@ function SelectionBar({
   text,
   saved,
   onSave,
+  onAnalyze,
   onOpenPhrase,
   onError,
 }: {
@@ -461,6 +484,7 @@ function SelectionBar({
   text: string;
   saved: boolean;
   onSave: () => Promise<void>;
+  onAnalyze: () => void;
   onOpenPhrase: (() => void) | null;
   onError: () => void;
 }) {
@@ -476,7 +500,10 @@ function SelectionBar({
     >
       <div className="flex w-full max-w-xl flex-col gap-3 rounded-2xl border border-line bg-card p-3 pl-4 shadow-2xl sm:flex-row sm:items-center">
         <p className="line-clamp-2 min-w-0 flex-1 font-serif text-sm text-ink/80">{text}</p>
-        <div className="flex shrink-0 justify-end gap-2">
+        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={onAnalyze} className={btn("secondary")}>
+            문법 분석
+          </button>
           {onOpenPhrase && (
             <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={onOpenPhrase} className={btn("primary")}>
               표현 뜻 보기
@@ -498,11 +525,102 @@ function SelectionBar({
   );
 }
 
+function GrammarPanel({
+  text,
+  saved,
+  onClose,
+  onSave,
+  onError,
+}: {
+  text: string;
+  saved: boolean;
+  onClose: () => void;
+  onSave: () => Promise<void>;
+  onError: () => void;
+}) {
+  const [result, setResult] = useState<{ grammar: Grammar } | { error: string } | undefined>(undefined);
+  const [pending, start] = useTransition();
+
+  useEffect(() => {
+    let cancelled = false;
+    analyzeGrammar(text)
+      .catch(() => ({ error: "분석하지 못했어요. 잠시 후 다시 시도해주세요" }))
+      .then((r) => !cancelled && setResult(r));
+    return () => {
+      cancelled = true;
+    };
+  }, [text]);
+
+  const grammar = result && "grammar" in result ? result.grammar : null;
+
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-3 sm:pb-6" role="dialog" aria-label="문법 분석">
+      <div className="flex max-h-[75vh] w-full max-w-xl flex-col rounded-2xl border border-line bg-card p-5 shadow-2xl">
+        <div className="flex items-start justify-between gap-3">
+          <p className="line-clamp-3 font-serif text-[0.95rem] leading-relaxed">{text}</p>
+          <button type="button" onClick={onClose} className="-m-2 p-2 text-muted hover:text-ink" aria-label="닫기">
+            ✕
+          </button>
+        </div>
+
+        <div className="mt-3 min-h-0 flex-1 overflow-y-auto text-sm">
+          {result === undefined && <p className="text-muted">문법을 분석하는 중…</p>}
+          {result && "error" in result && <p className="text-muted">{result.error}</p>}
+          {grammar && (
+            <>
+              <p className="leading-relaxed">{grammar.translation}</p>
+              <p className="mt-3 inline-block rounded-lg bg-paper px-3 py-1.5 font-mono text-xs">{grammar.pattern}</p>
+
+              <h3 className="mt-4 mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-muted">끊어 읽기</h3>
+              <ol className="space-y-2">
+                {grammar.chunks.map((c, i) => (
+                  <li key={i} className="rounded-lg bg-paper px-3 py-2">
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <span className="font-serif text-[0.95rem]">{c.text}</span>
+                      <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">{c.role}</span>
+                    </div>
+                    {c.note && <p className="mt-1 text-xs leading-relaxed text-muted">{c.note}</p>}
+                  </li>
+                ))}
+              </ol>
+
+              {grammar.points.length > 0 && (
+                <>
+                  <h3 className="mt-4 mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-muted">문법 포인트</h3>
+                  <ul className="space-y-2">
+                    {grammar.points.map((p, i) => (
+                      <li key={i}>
+                        <p className="font-medium">{p.title}</p>
+                        <p className="mt-0.5 leading-relaxed text-ink/80">{p.explanation}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={pending || saved}
+            onClick={() => start(() => onSave().catch(onError))}
+            className={btn("secondary")}
+          >
+            {saved ? "✓ 문장 저장됨" : "이 문장 저장"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SavedSummary({ words, sentences }: { words: SavedWordRow[]; sentences: SavedSentenceRow[] }) {
   if (!words.length && !sentences.length) {
     return (
       <p className="mt-16 rounded-xl border border-dashed border-line p-5 text-center text-sm text-muted">
-        단어를 누르면 뜻을 보고 단어장에 저장할 수 있어요. 구동사처럼 여러 단어로 된 표현은 드래그해서 선택한 뒤 &lsquo;표현 뜻 보기&rsquo;를 누르세요. 문장은 단어를 누른 뒤 &lsquo;이 문장 저장&rsquo;을 누르거나, 드래그해서 선택하면 저장할 수 있어요.
+        단어를 누르면 뜻을 보고 단어장에 저장할 수 있어요. 구동사처럼 여러 단어로 된 표현은 드래그해서 선택한 뒤 &lsquo;표현 뜻 보기&rsquo;를 누르세요. 문장은 단어를 누른 뒤 &lsquo;이 문장 저장&rsquo;을 누르거나, 드래그해서 선택하면 저장할 수 있어요. 드래그한 문장은 &lsquo;문법 분석&rsquo;으로 구조와 해석을 볼 수 있어요.
       </p>
     );
   }
