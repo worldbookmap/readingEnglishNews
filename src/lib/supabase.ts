@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Block } from "./extract";
+import type { Grammar } from "./grammar";
 import type { SourceId } from "./sources";
 import type { StudySource } from "./studySources";
 
@@ -63,6 +64,7 @@ export interface SavedSentenceRow {
   id: string;
   text: string;
   note: string | null;
+  grammar: Grammar | null; // copied from grammar_analyses when the sentence was analysed
   article_id: string;
   created_at: string;
 }

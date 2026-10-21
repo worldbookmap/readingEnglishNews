@@ -6,6 +6,7 @@ import { removeSentence, updateSentenceNote } from "@/app/actions";
 import { SOURCE_LABELS, type SourceId } from "@/lib/sources";
 import type { SavedSentenceRow } from "@/lib/supabase";
 import { formatDate } from "./ArticleCard";
+import { GrammarView } from "./GrammarView";
 
 export type SentenceWithArticle = SavedSentenceRow & { article: { id: string; title: string; source: SourceId } };
 
@@ -29,6 +30,7 @@ export function SentenceList({ sentences }: { sentences: SentenceWithArticle[] }
 function SentenceCard({ sentence: s }: { sentence: SentenceWithArticle }) {
   const [note, setNote] = useState(s.note ?? "");
   const [editing, setEditing] = useState(false);
+  const [showGrammar, setShowGrammar] = useState(false);
   const [pending, start] = useTransition();
 
   return (
@@ -68,12 +70,23 @@ function SentenceCard({ sentence: s }: { sentence: SentenceWithArticle }) {
         s.note && <p className="mt-2 border-l-2 border-accent pl-3 text-sm text-ink/80">{s.note}</p>
       )}
 
+      {showGrammar && s.grammar && (
+        <div className="mt-3 rounded-lg border border-line p-3 text-sm sm:p-4">
+          <GrammarView grammar={s.grammar} />
+        </div>
+      )}
+
       <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted">
         <Link href={`/articles/${s.article.id}`} className="min-w-0 truncate hover:text-ink hover:underline">
           {SOURCE_LABELS[s.article.source]} · {s.article.title}
         </Link>
         <span className="flex shrink-0 items-center gap-3">
           {formatDate(s.created_at)}
+          {s.grammar && (
+            <button type="button" onClick={() => setShowGrammar((v) => !v)} className="hover:text-ink">
+              {showGrammar ? "문법 접기" : "문법"}
+            </button>
+          )}
           {!editing && (
             <button type="button" onClick={() => setEditing(true)} className="hover:text-ink">
               {s.note ? "메모 수정" : "메모"}

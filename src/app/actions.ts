@@ -223,9 +223,15 @@ export async function updateWordNote(id: string, note: string): Promise<SavedWor
 export async function saveSentence(input: { articleId: string; text: string }): Promise<SavedSentenceRow> {
   const text = input.text.replace(/\s+/g, " ").trim().slice(0, 2000);
   if (!text) throw new Error("empty sentence");
+  // Keep the sentence's grammar analysis with it, if it was analysed.
+  const analysis = await db().from("grammar_analyses").select("result").eq("sentence", text).maybeSingle();
+  if (analysis.error) throw analysis.error;
   const { data, error } = await db()
     .from("saved_sentences")
-    .upsert({ text, article_id: input.articleId }, { onConflict: "text,article_id" })
+    .upsert(
+      { text, article_id: input.articleId, ...(analysis.data ? { grammar: analysis.data.result } : {}) },
+      { onConflict: "text,article_id" },
+    )
     .select()
     .single();
   if (error) throw error;
@@ -257,6 +263,15 @@ export async function analyzeGrammar(text: string): Promise<{ grammar: Grammar }
   const grammar = await analyze(sentence);
   const { error } = await db().from("grammar_analyses").upsert({ sentence, result: grammar, model: GRAMMAR_MODEL });
   if (error) throw error;
+  // The sentence may already be saved (or saved while the analysis ran): attach it there too.
+  const attached = await db()
+    .from("saved_sentences")
+    .update({ grammar })
+    .eq("text", sentence)
+    .is("grammar", null)
+    .select("id");
+  if (attached.error) throw attached.error;
+  if (attached.data.length) revalidatePath("/words");
   return { grammar };
 }
 
