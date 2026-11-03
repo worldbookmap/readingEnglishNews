@@ -121,6 +121,17 @@ export async function bbcLearningEnglishLatest(limit: number): Promise<PopularIt
     .map((p, i) => ({ source: "bbc", url: BBC_LE + p, rank: i + 1, bodyFetchable: true }));
 }
 
+export const isBbcLearningEnglish = (url: string) => url.startsWith("https://www.bbc.co.uk/learningenglish/");
+
+// The programme's MP3, from the page's "Download Audio" link. Some of those links are
+// broken (a typo in the file name), so it's checked; "" = none.
+export async function bbcAudioUrl(pageHtml: string): Promise<string> {
+  const href = /<a class="download bbcle-download-extension-mp3" href="(https:\/\/downloads\.bbc\.co\.uk\/[^"]+\.mp3)"/.exec(pageHtml)?.[1];
+  if (!href) return "";
+  const res = await fetch(href, { method: "HEAD", cache: "no-store", signal: AbortSignal.timeout(10_000) }).catch(() => null);
+  return res?.ok ? href : "";
+}
+
 const MODERN_LOVE_FEED = "https://www.nytimes.com/svc/collections/v1/publish/www.nytimes.com/column/modern-love/rss.xml";
 
 const decodeXml = (s: string) =>

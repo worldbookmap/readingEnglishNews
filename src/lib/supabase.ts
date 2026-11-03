@@ -27,6 +27,7 @@ export interface ArticleRow {
   page_count: number; // books only: the text lives in book_pages
   current_page: number; // books only: the page last opened
   current_block: number; // books only: the paragraph at the top of the screen on that page
+  audio_url: string | null; // BBC Learning English only: the episode's MP3 ("" = none)
 }
 
 export type ArticleSummary = Omit<ArticleRow, "blocks">;

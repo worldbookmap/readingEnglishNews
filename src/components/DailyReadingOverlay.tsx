@@ -132,9 +132,13 @@ function Programme({ programme }: { programme: DailyProgramme }) {
         BBC Learning English{programme.series ? ` · ${programme.series}` : ""}
       </p>
       <h2 className="mt-2 font-serif text-2xl leading-tight font-semibold tracking-tight sm:text-3xl">{programme.title}</h2>
-      <a href={programme.url} target="_blank" rel="noreferrer" className={`mt-2 inline-block text-sm ${linkClass}`}>
-        BBC에서 듣기 ↗
-      </a>
+      {programme.audioUrl ? (
+        <audio controls preload="none" src={programme.audioUrl} className="mt-4 w-full" />
+      ) : (
+        <a href={programme.url} target="_blank" rel="noreferrer" className={`mt-2 inline-block text-sm ${linkClass}`}>
+          BBC에서 듣기 ↗
+        </a>
+      )}
       <div className="mt-6 space-y-4 font-serif text-[1.075rem] leading-relaxed">
         {programme.blocks.map((b, i) =>
           b.type === "img" ? null : b.type === "h" ? (

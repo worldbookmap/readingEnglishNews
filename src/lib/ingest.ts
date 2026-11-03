@@ -1,6 +1,6 @@
 import "server-only";
 import { extractArticle } from "./extract";
-import { fetchHtml, popularFor, SOURCES, type FeedSourceId, type PopularItem } from "./sources";
+import { bbcAudioUrl, fetchHtml, isBbcLearningEnglish, popularFor, SOURCES, type FeedSourceId, type PopularItem } from "./sources";
 import { db } from "./supabase";
 
 const TIME_ZONE = "Asia/Seoul";
@@ -132,7 +132,8 @@ function titleFromUrl(url: string): string | undefined {
 }
 
 async function fetchedRow(url: string) {
-  const a = extractArticle(await fetchHtml(url), url);
+  const html = await fetchHtml(url);
+  const a = extractArticle(html, url);
   if (a.wordCount < 80) throw new Error(`too short (${a.wordCount} words)`);
   return {
     title: a.title,
@@ -142,7 +143,18 @@ async function fetchedRow(url: string) {
     published_at: a.publishedAt,
     blocks: a.blocks,
     word_count: a.wordCount,
+    ...(isBbcLearningEnglish(url) && { audio_url: await bbcAudioUrl(html) }),
   };
+}
+
+// BBC programmes saved before their audio was looked up have audio_url null: look it
+// up once. Returns the URL, or "" when there's none.
+export async function fillMissingAudio(article: { id: string; url: string; audio_url: string | null }): Promise<string> {
+  if (article.audio_url !== null || !isBbcLearningEnglish(article.url)) return article.audio_url ?? "";
+  const audioUrl = await bbcAudioUrl(await fetchHtml(article.url)).catch(() => null);
+  if (audioUrl === null) return "";
+  await db().from("articles").update({ audio_url: audioUrl }).eq("id", article.id).is("audio_url", null);
+  return audioUrl;
 }
 
 // The body is added later by pasting it in the reader (see setArticleBody).

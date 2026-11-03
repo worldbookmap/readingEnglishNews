@@ -1,5 +1,6 @@
 import "server-only";
 import type { Block } from "./extract";
+import { fillMissingAudio } from "./ingest";
 import { db, type BookPageRow } from "./supabase";
 
 // What opens over the home page: today's Daily Stoic meditation, then the newest BBC
@@ -85,13 +86,14 @@ export interface DailyProgramme {
   series: string | null; // "6 Minute English"
   title: string;
   imageUrl: string | null;
+  audioUrl: string; // "" = none
   blocks: Block[];
 }
 
 export async function latestProgramme(): Promise<DailyProgramme | null> {
   const { data, error } = await db()
     .from("articles")
-    .select("id, url, byline, title, image_url, blocks")
+    .select("id, url, byline, title, image_url, audio_url, blocks")
     .eq("source", "bbc")
     .order("popular_on", { ascending: false })
     .order("fetched_at", { ascending: false })
@@ -99,5 +101,13 @@ export async function latestProgramme(): Promise<DailyProgramme | null> {
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  return { id: data.id, url: data.url, series: data.byline, title: data.title, imageUrl: data.image_url, blocks: data.blocks as Block[] };
+  return {
+    id: data.id,
+    url: data.url,
+    series: data.byline,
+    title: data.title,
+    imageUrl: data.image_url,
+    audioUrl: await fillMissingAudio(data),
+    blocks: data.blocks as Block[],
+  };
 }

@@ -7,6 +7,7 @@ import { PasteBody } from "@/components/PasteBody";
 import { ReadToggle } from "@/components/ReadToggle";
 import { RereadToggle } from "@/components/RereadToggle";
 import { Reader } from "@/components/Reader";
+import { fillMissingAudio } from "@/lib/ingest";
 import { SOURCE_LABELS } from "@/lib/sources";
 import { db, type ArticleRow, type SavedSentenceRow, type SavedWordRow } from "@/lib/supabase";
 
@@ -26,6 +27,7 @@ export default async function ArticlePage({ params, searchParams }: PageProps<"/
   const a = article.data as ArticleRow;
   // Saved words link here; books have their own paged reader.
   if (a.source === "book") redirect(`/books/${a.id}`);
+  const audioUrl = a.source === "bbc" ? await fillMissingAudio(a) : "";
 
   return (
     <article className="mx-auto max-w-2xl">
@@ -52,6 +54,7 @@ export default async function ArticlePage({ params, searchParams }: PageProps<"/
         </div>
         <h1 className="font-serif text-3xl leading-tight font-semibold tracking-tight wrap-anywhere sm:text-4xl">{a.title}</h1>
         {a.byline && <p className="mt-3 text-sm text-muted">{a.byline}</p>}
+        {audioUrl && <audio controls preload="none" src={audioUrl} className="mt-4 w-full" />}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <a href={a.url} target="_blank" rel="noreferrer" className="text-sm text-muted underline underline-offset-4 hover:text-ink">
             원문 보기 ↗
