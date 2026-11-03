@@ -81,3 +81,28 @@ body {
   background-color: var(--word-mark);
   color: var(--ink);
 }
+
+/* Today's Daily Stoic meditation over the home page. */
+.daily-reading {
+  animation: daily-reading-in 200ms ease-out;
+}
+.daily-reading > article {
+  animation: daily-reading-rise 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes daily-reading-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes daily-reading-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .daily-reading,
+  .daily-reading > article {
+    animation: none;
+  }
+}

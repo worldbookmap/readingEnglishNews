@@ -14,6 +14,23 @@ export function htmlToBlocks(root: ParentNode): Block[] {
   for (const a of root.querySelectorAll("a, sup")) {
     if (/noteref/.test(epubType(a)) || (a.tagName.toLowerCase() === "sup" && /^\W*\d+\W*$/.test(a.textContent ?? ""))) a.remove();
   }
+  // A drop cap or a capital before small caps is a letter in its own element, often
+  // followed by a line break in the source: "<span class="dropcap">W</span>\n hy" would
+  // read "W hy". ("SCAP" itself is small caps, whose words keep their spaces.)
+  for (const el of root.querySelectorAll("[class]")) {
+    if (!/drop|(^|[\s_-])cap([\s_-]|$)/i.test(el.getAttribute("class") ?? "")) continue;
+    if (!/^\s*[“"‘'—]?\p{Lu}\s*$/u.test(el.textContent ?? "")) continue;
+    el.textContent = (el.textContent ?? "").trim();
+    // The text after it, possibly outside a wrapping element: drop the whitespace up to it.
+    let n: Node | null = el;
+    while (n) {
+      while (n && n !== root && !n.nextSibling) n = n.parentNode;
+      if (!n || n === root) break;
+      n = n.nextSibling!;
+      while (n.firstChild) n = n.firstChild;
+      if (n.nodeType === 3 && (n.textContent = (n.textContent ?? "").replace(/^\s+/, ""))) break;
+    }
+  }
   const blocks: Block[] = [];
   for (const el of root.querySelectorAll("p, h1, h2, h3, h4, h5, h6, blockquote, li")) {
     const tag = el.tagName.toLowerCase();
