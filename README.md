@@ -3,7 +3,7 @@
 어제 인기 있었던 **The New Yorker**, **BuzzFeed**, **NYT Modern Love**, **Literary Hub**, **Wait But Why** 기사와 **BBC Learning English**의 최신 학습 프로그램을 매일 자동으로 저장하고, 읽기 편하게 보여주는 개인용 웹앱입니다.
 
 - **오늘의 기사**: 매일 아침 7시(KST)에 사이트별 인기 기사 5개를 불러와 Supabase에 저장합니다. 지난 날짜의 기사도 계속 남아 있습니다.
-- **오늘의 글**: 홈을 열면 화면 가운데에 저장된 *The Daily Stoic* 책의 오늘 날짜(한국 시간) 글이, "다음 ›"으로 넘기면 최신 BBC Learning English 프로그램이 뜹니다. 바깥의 어두운 곳을 누르면 닫히고, 사이트를 다시 열 때까지는 뜨지 않습니다.
+- **오늘의 글**: 홈을 열면 화면 가운데에 저장된 *The Daily Stoic* 책의 오늘 날짜(한국 시간) 글이, "다음 ›"으로 넘기면 최신 BBC Learning English 프로그램이 뜹니다. 바깥의 어두운 곳을 누르면 닫히고, 앱 안에서 홈으로 돌아올 때는 다시 뜨지 않습니다(새로고침하면 다시 뜹니다).
 - **기사 추가**: 홈에서 원하는 기사 URL을 붙여넣으면 저장하고 바로 엽니다. 본문을 가져올 수 없는 사이트는 원문을 붙여넣어 읽습니다.
 - **책**: 책을 직접 붙여넣거나 .txt · .epub · .pdf 파일을 불러오고(EPUB·PDF는 브라우저에서 텍스트로 변환하므로 파일 자체는 올라가지 않습니다. DRM이 걸린 EPUB, 글자 없이 스캔 이미지만 있는 PDF는 읽을 수 없습니다), [Project Gutenberg](https://www.gutenberg.org/)(OPDS 카탈로그), [Standard Ebooks](https://standardebooks.org/)(교정된 단일 페이지 HTML판), [Internet Archive](https://archive.org/details/texts)(스캔본 OCR 텍스트, 쪽 머리글·쪽 번호·줄 끝 하이픈을 정리)에서 공개 도서를 검색해 가져옵니다. 직접 입력하거나 파일로 불러온 책은 [Open Library](https://openlibrary.org/developers/api)와 Apple Books 검색 API에서 표지를 찾아 붙입니다(표지가 없던 기존 책은 목록을 열 때 한 번 찾습니다). 약 1,500단어씩 페이지로 나눠 (1), (2)… 로 넘기며 읽고, 다시 열면 마지막으로 읽던 페이지의 읽던 문단으로 돌아갑니다(기기가 달라도 이어집니다). 기사와 똑같이 단어·문장을 저장할 수 있습니다.
 - **리더**: 단어를 누르면 영영 뜻(Wiktionary)이 보이고, 단어장에 저장할 수 있습니다. 저장한 단어에는 문맥이 된 문장과 출처 기사가 함께 남습니다.

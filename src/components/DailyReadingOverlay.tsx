@@ -4,17 +4,17 @@ import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { DailyProgramme, DailyReading } from "@/lib/dailyReading";
 
-// Shown once per visit (browser session): closing it keeps it closed when coming back
-// to the home page, until the site is opened again.
-const KEY = "daily-reading-closed";
+// Shown on every page load (a reload shows it again); once closed, it stays closed when
+// coming back to the home page from another page of the app.
+let closedNow = false;
 const listeners = new Set<() => void>();
 const subscribe = (fn: () => void) => {
   listeners.add(fn);
   return () => listeners.delete(fn);
 };
-const isClosed = () => sessionStorage.getItem(KEY) === "1";
+const isClosed = () => closedNow;
 const close = () => {
-  sessionStorage.setItem(KEY, "1");
+  closedNow = true;
   listeners.forEach((fn) => fn());
 };
 
