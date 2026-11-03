@@ -5,7 +5,7 @@ import { ArticleCard } from "@/components/ArticleCard";
 import { DailyReadingOverlay } from "@/components/DailyReadingOverlay";
 import { FetchNowButton } from "@/components/FetchNowButton";
 import { fillMissingCovers } from "@/lib/books";
-import { todaysReading } from "@/lib/dailyReading";
+import { latestProgramme, todaysReading } from "@/lib/dailyReading";
 import { SOURCE_LABELS, SOURCES } from "@/lib/sources";
 import { ARTICLE_SUMMARY_COLUMNS, db, type ArticleSummary } from "@/lib/supabase";
 
@@ -28,7 +28,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const params = await searchParams;
   const addedParam = Number(params.added);
   const addedLimit = Number.isInteger(addedParam) && addedParam > ADDED_INITIAL ? addedParam : ADDED_INITIAL;
-  const [popularRes, addedRes, booksRes, reading] = await Promise.all([
+  const [popularRes, addedRes, booksRes, reading, programme] = await Promise.all([
     db()
       .from("articles")
       .select(ARTICLE_SUMMARY_COLUMNS)
@@ -49,8 +49,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       .order("last_opened_at", { ascending: false, nullsFirst: false })
       .order("fetched_at", { ascending: false })
       .limit(BOOKS_SHOWN + 1),
-    // The home page still opens if today's meditation can't be found.
+    // The home page still opens if today's meditation or programme can't be found.
     todaysReading().catch(() => null),
+    latestProgramme().catch(() => null),
   ]);
   if (popularRes.error) throw popularRes.error;
   if (addedRes.error) throw addedRes.error;
@@ -66,7 +67,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
   return (
     <div>
-      {reading && <DailyReadingOverlay reading={reading} />}
+      {(reading || programme) && <DailyReadingOverlay reading={reading} programme={programme} />}
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm text-muted">{latest ? dayLabel(latest) : "아직 기사가 없어요"}</p>

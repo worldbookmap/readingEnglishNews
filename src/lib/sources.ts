@@ -10,13 +10,15 @@
 //   only the feed's title/summary is stored; the reader pastes the body in the app.
 // - Wait But Why: posts are rare, so the newest post from the RSS feed comes first,
 //   followed by the sidebar's "Popular Posts" list (in its order).
+// - BBC Learning English: one new programme every weekday, listed newest first on its
+//   "Latest programmes" page; only the newest is taken.
 
-export type FeedSourceId = "newyorker" | "buzzfeed" | "modernlove" | "lithub" | "waitbutwhy";
+export type FeedSourceId = "newyorker" | "buzzfeed" | "modernlove" | "lithub" | "waitbutwhy" | "bbc";
 // "custom": an article the reader added by URL (not part of the daily fetch).
 // "book": a book typed in or imported from Project Gutenberg (see lib/books.ts).
 export type SourceId = FeedSourceId | "custom" | "book";
 
-export const SOURCES: FeedSourceId[] = ["newyorker", "buzzfeed", "modernlove", "lithub", "waitbutwhy"];
+export const SOURCES: FeedSourceId[] = ["bbc", "newyorker", "buzzfeed", "modernlove", "lithub", "waitbutwhy"];
 
 export interface PopularItem {
   source: FeedSourceId;
@@ -37,6 +39,7 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   modernlove: "NYT Modern Love",
   lithub: "Literary Hub",
   waitbutwhy: "Wait But Why",
+  bbc: "BBC Learning English",
   custom: "직접 추가",
   book: "책",
 };
@@ -106,6 +109,18 @@ export async function waitButWhyPopular(limit: number): Promise<PopularItem[]> {
     .map((url, i) => ({ source: "waitbutwhy", url, rank: i + 1, bodyFetchable: true }));
 }
 
+// The page's links are typed by hand and vary ("/learningenglish/english//features/…",
+// "/learningenglish/englishfeatures/…"), so each is rebuilt from its "features/…" path.
+const BBC_LE = "https://www.bbc.co.uk/learningenglish/english/";
+
+export async function bbcLearningEnglishLatest(limit: number): Promise<PopularItem[]> {
+  const html = await fetchHtml(`${BBC_LE}latest_programmes`);
+  const paths = [...html.matchAll(/<div class="image image-single"><a href="[^"]*?(features\/[a-z0-9_-]+\/[a-z0-9_-]+)"/g)].map((m) => m[1]);
+  return uniqueInOrder(paths)
+    .slice(0, Math.min(limit, 1))
+    .map((p, i) => ({ source: "bbc", url: BBC_LE + p, rank: i + 1, bodyFetchable: true }));
+}
+
 const MODERN_LOVE_FEED = "https://www.nytimes.com/svc/collections/v1/publish/www.nytimes.com/column/modern-love/rss.xml";
 
 const decodeXml = (s: string) =>
@@ -156,5 +171,7 @@ export async function popularFor(source: FeedSourceId, limit: number): Promise<P
       return lithubPopular(limit);
     case "waitbutwhy":
       return waitButWhyPopular(limit);
+    case "bbc":
+      return bbcLearningEnglishLatest(limit);
   }
 }

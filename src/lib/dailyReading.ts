@@ -2,9 +2,12 @@ import "server-only";
 import type { Block } from "./extract";
 import { db, type BookPageRow } from "./supabase";
 
+// What opens over the home page: today's Daily Stoic meditation, then the newest BBC
+// Learning English programme.
+//
 // The Daily Stoic has one meditation per day of the year, each starting with a heading
 // like "November 3rd ACCEPTING WHAT IS" (date + title). Today's is found in the saved
-// book's pages and shown over the home page.
+// book's pages.
 
 const BOOK_TITLE = "%daily stoic%";
 const MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December";
@@ -73,4 +76,28 @@ export function readEntry(all: Block[], start: number, date: string): Pick<Daily
     text,
   }));
   return { title: heading.text.slice(date.length).trim(), blocks };
+}
+
+// The newest BBC Learning English programme, shown after the meditation.
+export interface DailyProgramme {
+  id: string;
+  url: string;
+  series: string | null; // "6 Minute English"
+  title: string;
+  imageUrl: string | null;
+  blocks: Block[];
+}
+
+export async function latestProgramme(): Promise<DailyProgramme | null> {
+  const { data, error } = await db()
+    .from("articles")
+    .select("id, url, byline, title, image_url, blocks")
+    .eq("source", "bbc")
+    .order("popular_on", { ascending: false })
+    .order("fetched_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return { id: data.id, url: data.url, series: data.byline, title: data.title, imageUrl: data.image_url, blocks: data.blocks as Block[] };
 }
