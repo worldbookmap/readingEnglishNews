@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ThemePicker } from "./ThemePicker";
 
 const LINKS = [
   { href: "/", label: "오늘의 기사" },
@@ -17,25 +18,28 @@ export function Nav() {
   if (pathname === "/login") return null;
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-paper/90 backdrop-blur">
-      <nav className="mx-auto flex max-w-5xl items-center gap-1 overflow-x-auto px-4 py-3 sm:px-6">
-        <Link href="/" className="mr-1 shrink-0 font-serif text-lg sm:mr-3 font-semibold tracking-tight">
-          Reading<span className="text-accent">.</span>
-        </Link>
-        {LINKS.map((l) => {
-          const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
-          return (
-            <Link
-              key={l.href}
-              href={l.href}
-              className={`shrink-0 rounded-full px-2 py-1.5 text-sm sm:px-3 transition-colors ${
-                active ? "bg-ink text-paper" : "text-muted hover:text-ink"
-              }`}
-            >
-              {l.label}
-            </Link>
-          );
-        })}
-      </nav>
+      <div className="relative mx-auto flex max-w-5xl items-center pr-2 sm:pr-4">
+        <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-3 pl-4 pr-1 sm:pl-6">
+          <Link href="/" className="mr-1 shrink-0 font-serif text-lg sm:mr-3 font-semibold tracking-tight">
+            Reading<span className="text-accent">.</span>
+          </Link>
+          {LINKS.map((l) => {
+            const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
+            return (
+              <Link
+                key={l.href}
+                href={l.href}
+                className={`shrink-0 rounded-full px-2 py-1.5 text-sm sm:px-3 transition-colors ${
+                  active ? "bg-ink text-paper" : "text-muted hover:text-ink"
+                }`}
+              >
+                {l.label}
+              </Link>
+            );
+          })}
+        </nav>
+        <ThemePicker />
+      </div>
     </header>
   );
 }

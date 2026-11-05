@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-:root {
+:root,
+[data-theme] {
   --paper: #faf8f3;
   --card: #ffffff;
   --ink: #1d1b18;
@@ -13,7 +14,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --paper: #161513;
     --card: #1f1d1a;
     --ink: #ece8e0;
@@ -24,6 +25,61 @@
     --word-mark: #5a4a12;
     --sentence-mark: #1d3446;
   }
+}
+
+/* Background colors from ThemePicker. Without data-theme the page follows the OS setting;
+   "cream" is the light palette above. */
+[data-theme="white"] {
+  --paper: #ffffff;
+  --line: #e7e5e0;
+}
+[data-theme="sepia"] {
+  --paper: #f4ecd8;
+  --card: #fbf6e9;
+  --muted: #655a47;
+  --line: #e0d4b8;
+  --accent: #a83c18;
+  --accent-soft: #efd9c4;
+  --word-mark: #f6d873;
+  --sentence-mark: #d3e2dc;
+}
+[data-theme="sage"] {
+  --paper: #e6efe3;
+  --card: #f4f8f2;
+  --muted: #586256;
+  --line: #cfdccb;
+  --accent: #a83c18;
+  --accent-soft: #f5dccf;
+  --word-mark: #f8df86;
+  --sentence-mark: #c5dfea;
+}
+[data-theme="sky"] {
+  --paper: #e3edf5;
+  --card: #f3f7fb;
+  --muted: #56626e;
+  --line: #cbd9e5;
+  --accent: #a83c18;
+  --accent-soft: #f6ddd1;
+  --word-mark: #f9e28a;
+  --sentence-mark: #bcd8ef;
+}
+[data-theme="night"],
+[data-theme="black"] {
+  color-scheme: dark;
+  --paper: #161513;
+  --card: #1f1d1a;
+  --ink: #ece8e0;
+  --muted: #9c968c;
+  --line: #34312c;
+  --accent: #ec8a62;
+  --accent-soft: #3a261c;
+  --word-mark: #5a4a12;
+  --sentence-mark: #1d3446;
+}
+[data-theme="black"] {
+  --paper: #000000;
+  --card: #141414;
+  --line: #2b2b2b;
 }
 
 @theme inline {
