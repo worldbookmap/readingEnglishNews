@@ -162,3 +162,37 @@ body {
     animation: none;
   }
 }
+
+/* Printable vocabulary sheet (VocabPrint): while mounted it replaces the page on paper,
+   black on white whatever the theme. */
+.vocab-sheet {
+  display: none;
+}
+@media print {
+  @page {
+    margin: 16mm;
+  }
+  html:has(.vocab-sheet) {
+    height: auto;
+    color-scheme: light;
+  }
+  body:has(> .vocab-sheet) {
+    display: block;
+    background: #fff;
+  }
+  body:has(> .vocab-sheet) > :not(.vocab-sheet) {
+    display: none;
+  }
+  .vocab-sheet {
+    display: block;
+    --ink: #000;
+    --muted: #555;
+    --line: #ccc;
+  }
+  /* Browsers drop backgrounds when printing, so the word is marked without one. */
+  .vocab-sheet mark {
+    background: none;
+    font-weight: 700;
+    text-decoration: underline;
+  }
+}

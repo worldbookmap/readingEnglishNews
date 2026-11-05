@@ -70,6 +70,7 @@ export default async function ArticlePage({ params, searchParams }: PageProps<"/
         <>
           <Reader
             articleId={a.id}
+            title={a.title}
             blocks={a.blocks}
             initialWords={(words.data ?? []) as SavedWordRow[]}
             initialSentences={(sentences.data ?? []) as SavedSentenceRow[]}

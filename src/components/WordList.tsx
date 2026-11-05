@@ -185,7 +185,7 @@ function Occurrence({ occurrence: o, word }: { occurrence: WordWithArticle; word
   );
 }
 
-function highlight(sentence: string, word: string) {
+export function highlight(sentence: string, word: string) {
   const re = new RegExp(`(\\b${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\w*)`, "i");
   return sentence.split(re).map((part, i) =>
     i % 2 === 1 ? (

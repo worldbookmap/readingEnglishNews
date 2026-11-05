@@ -9,9 +9,11 @@ import type { SavedSentenceRow, SavedWordRow } from "@/lib/supabase";
 import { splitSentences, splitWords, type Token } from "@/lib/tokenize";
 import { GrammarView } from "./GrammarView";
 import { SpeakButton, VoicePicker } from "./SpeakButton";
+import { VocabPrintButton } from "./VocabPrint";
 
 interface Props {
   articleId: string;
+  title: string;
   blocks: Block[];
   initialWords: SavedWordRow[];
   initialSentences: SavedSentenceRow[];
@@ -33,7 +35,7 @@ const MAX_PHRASE_WORDS = 6;
 
 const normSentence = (s: string) => s.replace(/\s+/g, " ").trim();
 
-export function Reader({ articleId, blocks, initialWords, initialSentences }: Props) {
+export function Reader({ articleId, title, blocks, initialWords, initialSentences }: Props) {
   const [words, setWords] = useState(() => new Map(initialWords.map((w) => [w.word, w])));
   const [sentences, setSentences] = useState(() => new Map(initialSentences.map((s) => [s.text, s])));
   const [active, setActive] = useState<Active | null>(null);
@@ -147,7 +149,7 @@ export function Reader({ articleId, blocks, initialWords, initialSentences }: Pr
         <Body blocks={blocks} savedWords={words} savedSentences={sentences} />
       </div>
 
-      <SavedSummary words={[...words.values()]} sentences={[...sentences.values()]} />
+      <SavedSummary title={title} words={[...words.values()]} sentences={[...sentences.values()]} />
 
       {selection && !active && !grammarFor && (
         <SelectionBar
@@ -585,7 +587,7 @@ function GrammarPanel({
   );
 }
 
-function SavedSummary({ words, sentences }: { words: SavedWordRow[]; sentences: SavedSentenceRow[] }) {
+function SavedSummary({ title, words, sentences }: { title: string; words: SavedWordRow[]; sentences: SavedSentenceRow[] }) {
   if (!words.length && !sentences.length) {
     return (
       <p className="mt-16 rounded-xl border border-dashed border-line p-5 text-center text-sm text-muted">
@@ -595,7 +597,10 @@ function SavedSummary({ words, sentences }: { words: SavedWordRow[]; sentences: 
   }
   return (
     <section className="mt-16 rounded-2xl border border-line bg-card p-5">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-muted">이 글에서 저장한 것</h2>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-muted">이 글에서 저장한 것</h2>
+        <VocabPrintButton title={title} words={words} sentences={sentences} />
+      </div>
       {words.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {words.map((w) => (
