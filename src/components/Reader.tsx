@@ -14,6 +14,7 @@ import { VocabPrintButton } from "./VocabPrint";
 interface Props {
   articleId: string;
   title: string;
+  page?: number; // set for a book: the summary then lists what was saved on this page
   blocks: Block[];
   initialWords: SavedWordRow[];
   initialSentences: SavedSentenceRow[];
@@ -35,7 +36,7 @@ const MAX_PHRASE_WORDS = 6;
 
 const normSentence = (s: string) => s.replace(/\s+/g, " ").trim();
 
-export function Reader({ articleId, title, blocks, initialWords, initialSentences }: Props) {
+export function Reader({ articleId, title, page, blocks, initialWords, initialSentences }: Props) {
   const [words, setWords] = useState(() => new Map(initialWords.map((w) => [w.word, w])));
   const [sentences, setSentences] = useState(() => new Map(initialSentences.map((s) => [s.text, s])));
   const [active, setActive] = useState<Active | null>(null);
@@ -149,7 +150,7 @@ export function Reader({ articleId, title, blocks, initialWords, initialSentence
         <Body blocks={blocks} savedWords={words} savedSentences={sentences} />
       </div>
 
-      <SavedSummary title={title} words={[...words.values()]} sentences={[...sentences.values()]} />
+      <SavedSummary title={title} page={page} blocks={blocks} words={[...words.values()]} sentences={[...sentences.values()]} />
 
       {selection && !active && !grammarFor && (
         <SelectionBar
@@ -587,8 +588,36 @@ function GrammarPanel({
   );
 }
 
-function SavedSummary({ title, words, sentences }: { title: string; words: SavedWordRow[]; sentences: SavedSentenceRow[] }) {
-  if (!words.length && !sentences.length) {
+// Saved rows don't record a page, so a book page finds its own by the text they came from.
+const compact = (s: string) => s.replace(/\s+/g, "");
+
+function SavedSummary({
+  title,
+  page,
+  blocks,
+  words: allWords,
+  sentences: allSentences,
+}: {
+  title: string;
+  page?: number;
+  blocks: Block[];
+  words: SavedWordRow[];
+  sentences: SavedSentenceRow[];
+}) {
+  const pageText = useMemo(
+    () => (page === undefined ? null : compact(blocks.map((b) => (b.type === "img" ? "" : b.text)).join(""))),
+    [page, blocks],
+  );
+  const shown = (text: string | null) => {
+    if (pageText === null) return true;
+    const needle = compact(text ?? "");
+    return needle !== "" && pageText.includes(needle);
+  };
+  const words = allWords.filter((w) => shown(w.context));
+  const sentences = allSentences.filter((s) => shown(s.text));
+  const empty = !words.length && !sentences.length;
+
+  if (!allWords.length && !allSentences.length) {
     return (
       <p className="mt-16 rounded-xl border border-dashed border-line p-5 text-center text-sm text-muted">
         단어를 누르면 뜻을 보고 단어장에 저장할 수 있어요. 구동사처럼 여러 단어로 된 표현은 드래그해서 선택한 뒤 &lsquo;표현 뜻 보기&rsquo;를 누르세요. 문장은 단어를 누른 뒤 &lsquo;이 문장 저장&rsquo;을 누르거나, 드래그해서 선택하면 저장할 수 있어요. 드래그한 문장은 &lsquo;문법 분석&rsquo;으로 구조와 해석을 볼 수 있어요.
@@ -597,10 +626,20 @@ function SavedSummary({ title, words, sentences }: { title: string; words: Saved
   }
   return (
     <section className="mt-16 rounded-2xl border border-line bg-card p-5">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-muted">이 글에서 저장한 것</h2>
-        <VocabPrintButton title={title} words={words} sentences={sentences} />
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-muted">
+          {page === undefined ? "이 글에서 저장한 것" : "이 페이지에서 저장한 것"}
+        </h2>
+        {page === undefined ? (
+          <VocabPrintButton label="단어장 인쇄" title={title} words={words} sentences={sentences} />
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {!empty && <VocabPrintButton label="이 페이지 인쇄" title={`${title} ${page}페이지`} words={words} sentences={sentences} />}
+            <VocabPrintButton label="책 전체 인쇄" title={title} words={allWords} sentences={allSentences} />
+          </div>
+        )}
       </div>
+      {empty && <p className="text-sm text-muted">이 페이지에서 저장한 단어나 문장이 아직 없어요.</p>}
       {words.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {words.map((w) => (

@@ -15,7 +15,7 @@ interface Props {
 const bySaved = (a: { created_at: string }, b: { created_at: string }) => a.created_at.localeCompare(b.created_at);
 
 // The sheet exists only while printing, so printing the page any other way still prints the article.
-export function VocabPrintButton({ title, words, sentences }: Props) {
+export function VocabPrintButton({ label, title, words, sentences }: Props & { label: string }) {
   const [printing, setPrinting] = useState(false);
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export function VocabPrintButton({ title, words, sentences }: Props) {
         className="flex shrink-0 items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-ink/40 hover:text-ink"
       >
         <PrinterIcon width={14} height={14} />
-        단어장 인쇄
+        {label}
       </button>
       {printing && createPortal(<VocabSheet title={title} words={words} sentences={sentences} />, document.body)}
     </>

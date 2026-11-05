@@ -98,6 +98,7 @@ export default async function BookPage({ params, searchParams }: PageProps<"/boo
             key={page}
             articleId={id}
             title={b.title}
+            page={page}
             blocks={p.blocks}
             initialWords={(words.data ?? []) as SavedWordRow[]}
             initialSentences={(sentences.data ?? []) as SavedSentenceRow[]}
