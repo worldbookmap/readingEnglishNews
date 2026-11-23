@@ -9,6 +9,7 @@ import type { TranslationMode } from "@/lib/translationMode";
 import type { SavedSentenceRow, SavedWordRow } from "@/lib/supabase";
 import { splitSentences, splitWords, type Token } from "@/lib/tokenize";
 import { GrammarView } from "./GrammarView";
+import { TranslationField } from "./TranslationField";
 import { SpeakButton, VoicePicker } from "./SpeakButton";
 import { VocabPrintButton } from "./VocabPrint";
 
@@ -75,7 +76,8 @@ export function Reader({ articleId, title, page, blocks, translations, translati
     const onChange = () => {
       if (barPressRef.current) return;
       const sel = window.getSelection();
-      const inside = sel?.anchorNode && containerRef.current?.contains(sel.anchorNode);
+      const typing = document.activeElement instanceof HTMLTextAreaElement; // 번역하기 box
+      const inside = !typing && sel?.anchorNode && containerRef.current?.contains(sel.anchorNode);
       let text = "";
       let phrase: Selection["phrase"] = null;
       let sentence = "";
@@ -151,9 +153,11 @@ export function Reader({ articleId, title, page, blocks, translations, translati
     <>
       <div ref={containerRef} onClick={onClick} className="reader font-serif text-[1.15rem] leading-[1.85] sm:text-[1.2rem]">
         <Body
+          articleId={articleId}
           blocks={blocks}
           translations={translationMode === "hide" ? undefined : translations}
           only={translationMode === "only"}
+          edit={translationMode === "edit"}
           savedWords={words}
           savedSentences={sentences}
         />
@@ -254,15 +258,19 @@ export function Reader({ articleId, title, page, blocks, translations, translati
 // ---------------------------------------------------------------------------
 
 const Body = memo(function Body({
+  articleId,
   blocks,
   translations,
   only,
+  edit,
   savedWords,
   savedSentences,
 }: {
+  articleId: string;
   blocks: Block[];
   translations?: Record<number, string>;
   only: boolean; // translated paragraphs show only their translation
+  edit: boolean; // a box to write each paragraph's translation in
   savedWords: Map<string, SavedWordRow>;
   savedSentences: Map<string, SavedSentenceRow>;
 }) {
@@ -348,6 +356,13 @@ const Body = memo(function Body({
             <p key={i} data-block={i} {...ko} className="my-5">
               {content}
             </p>
+          );
+        if (edit)
+          return (
+            <Fragment key={i}>
+              {el}
+              <TranslationField articleId={articleId} source={b.text} initial={translation ?? ""} indent={b.type === "li" || b.type === "quote"} />
+            </Fragment>
           );
         if (only || !translation) return el;
         return (

@@ -46,10 +46,9 @@ export default async function BookPage({ params, searchParams }: PageProps<"/boo
   ]);
   if (pageRes.error) throw pageRes.error;
   const p = pageRes.data as BookPageRow | null;
-  // Translations from the 번역 노트 extension, once the book has any.
-  const translated = !!progress?.done;
+  // Translations written here or with the 번역 노트 extension.
   const mode = translationMode(cookieStore.get(TRANSLATION_COOKIE)?.value);
-  const translations = translated && p && mode !== "hide" ? await blockTranslations(p.blocks) : undefined;
+  const translations = p && mode !== "hide" ? await blockTranslations(p.blocks) : undefined;
   const href = (n: number) => `/books/${id}?page=${n}`;
 
   return (
@@ -97,11 +96,9 @@ export default async function BookPage({ params, searchParams }: PageProps<"/boo
             <ReadToggle articleId={id} readAt={b.read_at} />
           </div>
         </div>
-        {translated && (
-          <div className="mt-5">
-            <TranslationToggle mode={mode} done={progress.done} total={progress.total} />
-          </div>
-        )}
+        <div className="mt-5">
+          <TranslationToggle mode={mode} done={progress?.done ?? 0} total={progress?.total ?? 0} />
+        </div>
         <div className="mt-6">
           <Pagination href={href} page={page} count={b.page_count} />
         </div>

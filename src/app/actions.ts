@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { AUTH_COOKIE, authToken } from "@/lib/auth";
@@ -12,6 +12,7 @@ import { importStudyWords } from "@/lib/studylang";
 import { bookImagePrefix, deleteBookImages, isBookKey, uploadBookImage } from "@/lib/bookImages";
 import type { Block } from "@/lib/extract";
 import { z } from "zod";
+import { saveAppTranslation } from "@/lib/translations";
 import { db, type SavedSentenceRow, type SavedWordRow } from "@/lib/supabase";
 
 export async function login(formData: FormData) {
@@ -220,6 +221,18 @@ export async function openBookPage(articleId: string, page: number, remember = t
 
 // Saved while scrolling a book page. No revalidation: it would re-render the page
 // being read, and the book lists only show the page number (kept fresh by openBookPage).
+// 번역하기 in the reader: one paragraph's translation ("" clears it). It's stored under the
+// book page's address, which is how the 번역 노트 extension names the book's document.
+export async function saveParagraphTranslation(articleId: string, source: string, translation: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(articleId) || !source.trim() || source.length > 50_000 || translation.length > 50_000) {
+    throw new Error("invalid translation");
+  }
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? (host?.startsWith("localhost") ? "http" : "https");
+  await saveAppTranslation(`${proto}://${host}/books/${articleId}`, source, translation);
+}
+
 export async function saveBookPosition(articleId: string, page: number, block: number) {
   if (!Number.isInteger(page) || !Number.isInteger(block) || page < 1 || block < 0) return;
   const { error } = await db().from("articles").update({ current_page: page, current_block: block }).eq("id", articleId);

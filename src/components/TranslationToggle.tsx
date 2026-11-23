@@ -8,6 +8,7 @@ const MODES: { id: TranslationMode; label: string }[] = [
   { id: "hide", label: "원문" },
   { id: "below", label: "원문+번역" },
   { id: "only", label: "번역만" },
+  { id: "edit", label: "번역하기" },
 ];
 
 function saveMode(id: TranslationMode) {

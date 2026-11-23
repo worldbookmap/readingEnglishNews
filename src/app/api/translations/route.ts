@@ -1,9 +1,14 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { saveDocTranslations } from "@/lib/translations";
+import { pendingAppTranslations, saveDocTranslations } from "@/lib/translations";
 
 // The 번역 노트 Chrome extension posts a document's translations here from the book page
-// it's open on (same origin, so the login cookie comes along; proxy.ts checks it).
+// it's open on (same origin, so the login cookie comes along; proxy.ts checks it), after
+// taking in the ones written in the app (GET).
+
+export async function GET() {
+  return Response.json({ rows: await pendingAppTranslations() });
+}
 
 const bodySchema = z.object({
   url: z.string().url().max(2000),

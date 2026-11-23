@@ -3,7 +3,9 @@ import { createHash } from "node:crypto";
 import type { Block } from "./extract";
 import { db } from "./supabase";
 
-// Korean translations from the 번역 노트 Chrome extension (see 0017_translations.sql).
+// Korean translations from the 번역 노트 Chrome extension (see 0017_translations.sql),
+// or written in the reader (0018_app_translations.sql: ext_hash '' until the extension
+// takes them in; translation '' = cleared in the app).
 // Paragraphs are matched by the md5 of their English text, the same key the
 // book_translation_progress SQL function computes from book_pages.
 
@@ -24,7 +26,7 @@ export async function blockTranslations(blocks: Block[]): Promise<Record<number,
       .in("source_hash", wanted.slice(i, i + 150));
     // Translations are an extra: a missing table (0017 not run yet) mustn't break the page.
     if (error) return console.error("paragraph_translations", error.message), {};
-    for (const r of data ?? []) found.set(r.source_hash as string, r.translation as string);
+    for (const r of data ?? []) if (r.translation) found.set(r.source_hash as string, r.translation as string);
   }
   const out: Record<number, string> = {};
   hashes.forEach((h, i) => {
@@ -46,9 +48,45 @@ export async function translationProgress(ids: string[]): Promise<Map<string, Tr
   return new Map(((data ?? []) as { article_id: string; done: number; total: number }[]).map((r) => [r.article_id, r]));
 }
 
+// A paragraph translated (or cleared: "") in the reader. `docUrl` is the book page's
+// address without ?page=, the extension's document key for that book.
+export async function saveAppTranslation(docUrl: string, source: string, translation: string) {
+  const text = normalizeSource(source);
+  const hash = sourceHash(text);
+  const value = translation.trim();
+  if (!value) {
+    const { data, error } = await db().from("paragraph_translations").select("source_hash").eq("source_hash", hash).maybeSingle();
+    if (error) throw error;
+    if (!data) return;
+  }
+  const { error } = await db().from("paragraph_translations").upsert({
+    source_hash: hash,
+    source: text,
+    translation: value,
+    doc_url: docUrl,
+    ext_hash: "",
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+}
+
+// Translations written in the app that the extension hasn't taken in yet.
+export async function pendingAppTranslations() {
+  const { data, error } = await db()
+    .from("paragraph_translations")
+    .select("doc_url, source, translation, updated_at")
+    .eq("ext_hash", "")
+    .order("updated_at")
+    .limit(5000);
+  if (error) throw error;
+  return data ?? [];
+}
+
 // One extension document: its translated paragraphs replace what it sent before.
 // `keys` are all the extension keys it still has a translation for, including paragraphs
-// whose English text it no longer knows (those rows are kept, not deleted).
+// whose English text it no longer knows (those rows are kept, not deleted). The extension
+// takes in pendingAppTranslations() first, so the app's rows for this document are
+// replaced too.
 export async function saveDocTranslations(doc: {
   url: string;
   pairs: { key: string; source: string; translation: string }[];
