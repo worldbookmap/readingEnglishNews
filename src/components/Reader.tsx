@@ -5,6 +5,7 @@ import { analyzeGrammar, removeSentence, removeWord, saveSentence, saveWord, upd
 import { formatDefinition, lookup, naverDictUrl, normalizePhrase, normalizeWord, playphraseUrl, youglishUrl, type Definition } from "@/lib/dictionary";
 import type { Block, Mark } from "@/lib/extract";
 import type { Grammar } from "@/lib/grammar";
+import type { TranslationMode } from "@/lib/translationMode";
 import type { SavedSentenceRow, SavedWordRow } from "@/lib/supabase";
 import { splitSentences, splitWords, type Token } from "@/lib/tokenize";
 import { GrammarView } from "./GrammarView";
@@ -16,6 +17,8 @@ interface Props {
   title: string;
   page?: number; // set for a book: the summary then lists what was saved on this page
   blocks: Block[];
+  translations?: Record<number, string>; // block index → Korean translation (books)
+  translationMode?: TranslationMode;
   initialWords: SavedWordRow[];
   initialSentences: SavedSentenceRow[];
 }
@@ -36,7 +39,7 @@ const MAX_PHRASE_WORDS = 6;
 
 const normSentence = (s: string) => s.replace(/\s+/g, " ").trim();
 
-export function Reader({ articleId, title, page, blocks, initialWords, initialSentences }: Props) {
+export function Reader({ articleId, title, page, blocks, translations, translationMode = "hide", initialWords, initialSentences }: Props) {
   const [words, setWords] = useState(() => new Map(initialWords.map((w) => [w.word, w])));
   const [sentences, setSentences] = useState(() => new Map(initialSentences.map((s) => [s.text, s])));
   const [active, setActive] = useState<Active | null>(null);
@@ -147,7 +150,13 @@ export function Reader({ articleId, title, page, blocks, initialWords, initialSe
   return (
     <>
       <div ref={containerRef} onClick={onClick} className="reader font-serif text-[1.15rem] leading-[1.85] sm:text-[1.2rem]">
-        <Body blocks={blocks} savedWords={words} savedSentences={sentences} />
+        <Body
+          blocks={blocks}
+          translations={translationMode === "hide" ? undefined : translations}
+          only={translationMode === "only"}
+          savedWords={words}
+          savedSentences={sentences}
+        />
       </div>
 
       <SavedSummary title={title} page={page} blocks={blocks} words={[...words.values()]} sentences={[...sentences.values()]} />
@@ -246,10 +255,14 @@ export function Reader({ articleId, title, page, blocks, initialWords, initialSe
 
 const Body = memo(function Body({
   blocks,
+  translations,
+  only,
   savedWords,
   savedSentences,
 }: {
   blocks: Block[];
+  translations?: Record<number, string>;
+  only: boolean; // translated paragraphs show only their translation
   savedWords: Map<string, SavedWordRow>;
   savedSentences: Map<string, SavedSentenceRow>;
 }) {
@@ -285,43 +298,71 @@ const Body = memo(function Body({
             </figure>
           );
         }
-        const content = b.sentences.map((s, si) => {
-          const inPhrase = phraseTokens(s.tokens, phrases);
-          return (
-            <span key={si}>
-              <span className={`s${savedSentences.has(normSentence(s.text)) ? " saved" : ""}`}>
-                {s.tokens.map((t, ti) =>
-                  t.word ? (
-                    <span key={ti} className={`w${inPhrase.has(ti) || savedWords.has(normalizeWord(t.text)) ? " saved" : ""}`}>
-                      {styled(t.text, t.at, b.marks)}
+        const translation = translations?.[i];
+        const content =
+          only && translation
+            ? translation
+            : b.sentences.map((s, si) => {
+                const inPhrase = phraseTokens(s.tokens, phrases);
+                return (
+                  <span key={si}>
+                    <span className={`s${savedSentences.has(normSentence(s.text)) ? " saved" : ""}`}>
+                      {s.tokens.map((t, ti) =>
+                        t.word ? (
+                          <span key={ti} className={`w${inPhrase.has(ti) || savedWords.has(normalizeWord(t.text)) ? " saved" : ""}`}>
+                            {styled(t.text, t.at, b.marks)}
+                          </span>
+                        ) : (
+                          <Fragment key={ti}>{styled(t.text, t.at, b.marks)}</Fragment>
+                        ),
+                      )}
                     </span>
-                  ) : (
-                    <Fragment key={ti}>{styled(t.text, t.at, b.marks)}</Fragment>
-                  ),
-                )}
-              </span>
-              {si < b.sentences.length - 1 ? " " : null}
-            </span>
+                    {si < b.sentences.length - 1 ? " " : null}
+                  </span>
+                );
+              });
+        // Korean text is marked so the 번역 노트 extension doesn't take it for English to translate.
+        const ko = only && translation ? { lang: "ko", "data-mdtr-skip": "", style: { whiteSpace: "pre-line" as const } } : {};
+        let el: ReactNode;
+        if (b.type === "h")
+          el = (
+            <h2 key={i} data-block={i} {...ko} className="mt-10 mb-4 text-[1.35rem] leading-snug font-semibold">
+              {content}
+            </h2>
           );
-        });
-        if (b.type === "h") return <h2 key={i} data-block={i} className="mt-10 mb-4 text-[1.35rem] leading-snug font-semibold">{content}</h2>;
-        if (b.type === "quote")
-          return (
-            <blockquote key={i} data-block={i} className="my-6 border-l-2 border-accent pl-5 italic text-ink/85">
+        else if (b.type === "quote")
+          el = (
+            <blockquote key={i} data-block={i} {...ko} className="my-6 border-l-2 border-accent pl-5 italic text-ink/85">
               {content}
             </blockquote>
           );
-        if (b.type === "li")
-          return (
-            <p key={i} data-block={i} className="my-3 pl-5 -indent-4">
+        else if (b.type === "li")
+          el = (
+            <p key={i} data-block={i} {...ko} className="my-3 pl-5 -indent-4">
               <span className="mr-2 text-accent">•</span>
               {content}
             </p>
           );
+        else
+          el = (
+            <p key={i} data-block={i} {...ko} className="my-5">
+              {content}
+            </p>
+          );
+        if (only || !translation) return el;
         return (
-          <p key={i} data-block={i} className="my-5">
-            {content}
-          </p>
+          <Fragment key={i}>
+            {el}
+            <p
+              lang="ko"
+              data-mdtr-skip=""
+              className={`-mt-2 mb-6 border-l-2 border-line pl-3 font-sans text-[0.9em] leading-relaxed whitespace-pre-line text-ink/70 ${
+                b.type === "li" || b.type === "quote" ? "ml-5" : ""
+              }`}
+            >
+              {translation}
+            </p>
+          </Fragment>
         );
       })}
     </>

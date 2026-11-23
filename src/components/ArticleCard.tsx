@@ -23,7 +23,15 @@ function lengthLabel(article: ArticleSummary) {
   return article.word_count ? `${readingMinutes(article.word_count)}분` : "본문 붙여넣기 필요";
 }
 
-export function ArticleCard({ article, showRank = true }: { article: ArticleSummary; showRank?: boolean }) {
+export function ArticleCard({
+  article,
+  showRank = true,
+  translation,
+}: {
+  article: ArticleSummary;
+  showRank?: boolean;
+  translation?: { done: number; total: number }; // books: paragraphs translated with 번역 노트
+}) {
   const isBook = article.source === "book";
   return (
     <Link
@@ -42,6 +50,11 @@ export function ArticleCard({ article, showRank = true }: { article: ArticleSumm
           <span>·</span>
           <span>{lengthLabel(article)}</span>
           <ReadStatus article={article} />
+          {translation && translation.done > 0 && (
+            <span className="rounded-full border border-line px-2 py-0.5 text-[11px] text-muted tabular-nums">
+              번역 {Math.floor((translation.done / translation.total) * 100)}%
+            </span>
+          )}
         </div>
         <h3 className="font-serif text-lg leading-snug font-semibold wrap-anywhere group-hover:underline group-hover:decoration-1 group-hover:underline-offset-4">
           {article.title}

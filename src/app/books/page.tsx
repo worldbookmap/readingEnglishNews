@@ -5,6 +5,7 @@ import { AddBookForm } from "@/components/AddBookForm";
 import { ArticleCard } from "@/components/ArticleCard";
 import { ImportBookButton } from "@/components/ImportBookButton";
 import { fillMissingCovers, searchArchiveBooks, searchPublicBooks, searchStandardEbooks, type PublicSource } from "@/lib/books";
+import { translationProgress } from "@/lib/translations";
 import { ARTICLE_SUMMARY_COLUMNS, db, type ArticleSummary } from "@/lib/supabase";
 
 // Importing a public book downloads and splits a few hundred KB of text.
@@ -47,6 +48,7 @@ export default async function BooksPage({ searchParams }: PageProps<"/books">) {
     .order("fetched_at", { ascending: false });
   if (error) throw error;
   const books = await fillMissingCovers((data ?? []) as ArticleSummary[]);
+  const progress = await translationProgress(books.map((b) => b.id));
 
   return (
     <div>
@@ -58,7 +60,7 @@ export default async function BooksPage({ searchParams }: PageProps<"/books">) {
       {books.length > 0 && (
         <div className="grid gap-3 lg:grid-cols-2">
           {books.map((b) => (
-            <ArticleCard key={b.id} article={b} showRank={false} />
+            <ArticleCard key={b.id} article={b} showRank={false} translation={progress.get(b.id)} />
           ))}
         </div>
       )}

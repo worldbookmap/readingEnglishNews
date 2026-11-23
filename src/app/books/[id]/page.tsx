@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { readingMinutes } from "@/components/ArticleCard";
 import { BookCover } from "@/components/BookCover";
@@ -9,6 +10,9 @@ import { ReadToggle } from "@/components/ReadToggle";
 import { RereadToggle } from "@/components/RereadToggle";
 import { Reader } from "@/components/Reader";
 import { ReadingPosition } from "@/components/ReadingPosition";
+import { TranslationToggle } from "@/components/TranslationToggle";
+import { TRANSLATION_COOKIE, translationMode } from "@/lib/translationMode";
+import { blockTranslations, translationProgress } from "@/lib/translations";
 import {
   ARTICLE_SUMMARY_COLUMNS,
   db,
@@ -33,13 +37,19 @@ export default async function BookPage({ params, searchParams }: PageProps<"/boo
   const jumpTo = query.block !== undefined ? Number(query.block) || 0 : null;
   const page = Math.min(Math.max(Number.isInteger(requested) ? requested : b.current_page, 1), Math.max(b.page_count, 1));
 
-  const [pageRes, words, sentences] = await Promise.all([
+  const [pageRes, words, sentences, progress, cookieStore] = await Promise.all([
     db().from("book_pages").select("*").eq("article_id", id).eq("page", page).maybeSingle(),
     db().from("saved_words").select("*").eq("article_id", id),
     db().from("saved_sentences").select("*").eq("article_id", id),
+    translationProgress([id]).then((m) => m.get(id) ?? null),
+    cookies(),
   ]);
   if (pageRes.error) throw pageRes.error;
   const p = pageRes.data as BookPageRow | null;
+  // Translations from the 번역 노트 extension, once the book has any.
+  const translated = !!progress?.done;
+  const mode = translationMode(cookieStore.get(TRANSLATION_COOKIE)?.value);
+  const translations = translated && p && mode !== "hide" ? await blockTranslations(p.blocks) : undefined;
   const href = (n: number) => `/books/${id}?page=${n}`;
 
   return (
@@ -87,6 +97,11 @@ export default async function BookPage({ params, searchParams }: PageProps<"/boo
             <ReadToggle articleId={id} readAt={b.read_at} />
           </div>
         </div>
+        {translated && (
+          <div className="mt-5">
+            <TranslationToggle mode={mode} done={progress.done} total={progress.total} />
+          </div>
+        )}
         <div className="mt-6">
           <Pagination href={href} page={page} count={b.page_count} />
         </div>
@@ -100,6 +115,8 @@ export default async function BookPage({ params, searchParams }: PageProps<"/boo
             title={b.title}
             page={page}
             blocks={p.blocks}
+            translations={translations}
+            translationMode={mode}
             initialWords={(words.data ?? []) as SavedWordRow[]}
             initialSentences={(sentences.data ?? []) as SavedSentenceRow[]}
           />
