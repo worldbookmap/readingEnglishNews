@@ -1,9 +1,9 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { analyzeGrammar, removeSentence, removeWord, saveSentence, saveWord, updateWordNote } from "@/app/actions";
 import { formatDefinition, lookup, naverDictUrl, normalizePhrase, normalizeWord, playphraseUrl, youglishUrl, type Definition } from "@/lib/dictionary";
-import type { Block } from "@/lib/extract";
+import type { Block, Mark } from "@/lib/extract";
 import type { Grammar } from "@/lib/grammar";
 import type { SavedSentenceRow, SavedWordRow } from "@/lib/supabase";
 import { splitSentences, splitWords, type Token } from "@/lib/tokenize";
@@ -256,7 +256,7 @@ const Body = memo(function Body({
   const parsed = useMemo(
     () =>
       blocks.map((b) =>
-        b.type === "img" ? b : { ...b, sentences: splitSentences(b.text).map((s) => ({ text: s, tokens: splitWords(s) })) },
+        b.type === "img" ? b : { ...b, sentences: withOffsets(b.text, splitSentences(b.text)) },
       ),
     [blocks],
   );
@@ -271,8 +271,16 @@ const Body = memo(function Body({
         if (b.type === "img") {
           return (
             <figure key={i} data-block={i} className="my-8">
+              {/* Book images: no wider than their own size, with room kept while they load. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={b.src} alt={b.caption ?? ""} loading="lazy" className="w-full rounded-lg" />
+              <img
+                src={b.src}
+                alt={b.caption ?? ""}
+                loading="lazy"
+                {...(b.width && b.height
+                  ? { width: b.width, height: b.height, style: { width: b.width }, className: "mx-auto h-auto max-w-full rounded-lg" }
+                  : { className: "w-full rounded-lg" })}
+              />
               {b.caption && <figcaption className="mt-2 font-sans text-xs text-muted">{b.caption}</figcaption>}
             </figure>
           );
@@ -285,10 +293,10 @@ const Body = memo(function Body({
                 {s.tokens.map((t, ti) =>
                   t.word ? (
                     <span key={ti} className={`w${inPhrase.has(ti) || savedWords.has(normalizeWord(t.text)) ? " saved" : ""}`}>
-                      {t.text}
+                      {styled(t.text, t.at, b.marks)}
                     </span>
                   ) : (
-                    t.text
+                    <Fragment key={ti}>{styled(t.text, t.at, b.marks)}</Fragment>
                   ),
                 )}
               </span>
@@ -319,6 +327,42 @@ const Body = memo(function Body({
     </>
   );
 });
+
+// Sentences and their words, each word with its position in the block's text (for marks).
+function withOffsets(text: string, sentences: string[]) {
+  let pos = 0;
+  return sentences.map((s) => {
+    pos = Math.max(pos, text.indexOf(s, pos));
+    let at = pos;
+    pos += s.length;
+    return {
+      text: s,
+      tokens: splitWords(s).map((t) => {
+        const token = { ...t, at };
+        at += t.text.length;
+        return token;
+      }),
+    };
+  });
+}
+
+// A piece of a block's text starting at `at`, with the bold/italic marks over it.
+function styled(text: string, at: number, marks: Mark[] | undefined): ReactNode {
+  const end = at + text.length;
+  const over = marks?.filter((m) => m.start < end && m.end > at);
+  if (!over?.length) return text;
+  const cuts = [...new Set([0, text.length, ...over.flatMap((m) => [m.start - at, m.end - at])])]
+    .filter((c) => c >= 0 && c <= text.length)
+    .sort((a, b) => a - b);
+  return cuts.slice(1).map((to, k) => {
+    const from = cuts[k];
+    const covering = over.filter((m) => m.start <= at + from && m.end >= at + to);
+    let node: ReactNode = text.slice(from, to);
+    if (covering.some((m) => m.italic)) node = <em>{node}</em>;
+    if (covering.some((m) => m.bold)) node = <strong>{node}</strong>;
+    return <Fragment key={k}>{node}</Fragment>;
+  });
+}
 
 // First and last word spans the selection actually covers. Mobile selection handles
 // often put the range boundaries in the space between words, on a sentence/paragraph

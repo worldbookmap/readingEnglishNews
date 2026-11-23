@@ -1,15 +1,22 @@
 import { strFromU8, unzipSync } from "fflate";
-import { blocksToText, htmlToBlocks } from "./bookHtml";
+import { blocksToText, cssClassStyles, htmlToBlocks, type ClassStyles } from "./bookHtml";
+import type { Block } from "./extract";
 
 // Converts an EPUB or PDF file to plain text in the browser (paragraphs separated by
 // blank lines), so a large file never has to be uploaded: only its text is sent.
+// An EPUB also keeps its blocks — bold/italic and images, which plain text loses.
 
 export interface BookFile {
   format: "txt" | "epub" | "pdf";
   title: string | null;
   author: string | null;
   text: string;
+  // EPUB only. Image blocks' src is `epub:<path in the zip>` until the image is uploaded.
+  blocks?: Block[];
+  images?: Map<string, Blob>;
 }
+
+export const EPUB_IMAGE = "epub:";
 
 export async function readBookFile(file: File): Promise<BookFile> {
   const name = file.name.toLowerCase();
@@ -25,6 +32,14 @@ const clean = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, " ").t
 // spine lists the chapters in reading order.
 
 const DC = "http://purl.org/dc/elements/1.1/";
+const IMAGE_TYPES: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  svg: "image/svg+xml",
+};
 
 function parseXml(source: string, type: DOMParserSupportedType = "application/xhtml+xml") {
   const doc = new DOMParser().parseFromString(source, type);
@@ -64,7 +79,7 @@ async function readEpub(file: File): Promise<BookFile> {
       item.getAttribute("id"),
       {
         path: resolvePath(base, decodeURIComponent(item.getAttribute("href") ?? "")),
-        type: item.getAttribute("media-type") ?? "",
+        type: (item.getAttribute("media-type") ?? "").toLowerCase(),
         nav: /\bnav\b/.test(item.getAttribute("properties") ?? ""),
       },
     ]),
@@ -74,6 +89,14 @@ async function readEpub(file: File): Promise<BookFile> {
   const encryption = read("META-INF/encryption.xml");
   if (encryption && /URI="[^"]+\.x?html?"/i.test(encryption)) throw new Error("DRM이 걸린 책이라 읽을 수 없어요");
 
+  // Classes the stylesheets make bold or italic (Calibre conversions use them, not <b>/<i>).
+  const classStyles: ClassStyles = new Map();
+  for (const item of manifest.values()) {
+    if (item.type === "text/css") cssClassStyles(read(item.path) ?? "", classStyles);
+  }
+  const imageTypes = new Map([...manifest.values()].filter((i) => i.type.startsWith("image/")).map((i) => [i.path, i.type]));
+  const images = new Map<string, Blob>();
+
   const blocks = [...opf.querySelectorAll("spine > itemref")].flatMap((ref) => {
     if (ref.getAttribute("linear") === "no") return [];
     const item = manifest.get(ref.getAttribute("idref"));
@@ -81,12 +104,62 @@ async function readEpub(file: File): Promise<BookFile> {
     const source = read(item.path);
     if (!source) return [];
     const doc = parseXml(source);
-    return htmlToBlocks(doc.body ?? doc.documentElement);
+    for (const style of doc.querySelectorAll("style")) cssClassStyles(style.textContent ?? "", classStyles);
+    const dir = item.path.replace(/[^/]*$/, "");
+    return htmlToBlocks(doc.body ?? doc.documentElement, {
+      classStyles,
+      image: (src) => {
+        if (/^[a-z]+:/i.test(src)) return null; // data: or web URLs
+        let path: string;
+        try {
+          path = resolvePath(dir, decodeURIComponent(src.replace(/[?#].*$/, "")));
+        } catch {
+          return null;
+        }
+        const type = imageTypes.get(path) ?? IMAGE_TYPES[path.split(".").pop()!.toLowerCase()];
+        if (!type || !zip[path]) return null;
+        if (!images.has(path)) images.set(path, new Blob([zip[path] as Uint8Array<ArrayBuffer>], { type }));
+        return EPUB_IMAGE + path;
+      },
+    });
   });
 
   const meta = (tag: string) => clean(opf.getElementsByTagNameNS(DC, tag)[0]?.textContent);
   const authors = [...opf.getElementsByTagNameNS(DC, "creator")].map((c) => clean(c.textContent)).filter(Boolean);
-  return { format: "epub", title: meta("title"), author: authors.join(", ") || null, text: blocksToText(blocks) };
+  return { format: "epub", title: meta("title"), author: authors.join(", ") || null, text: blocksToText(blocks), blocks, images };
+}
+
+// An EPUB image made ready for upload: big ones are scaled down to MAX_IMAGE_WIDTH and
+// re-encoded, SVGs are drawn into a bitmap. Null for images that can't be decoded and
+// spacer images.
+const MAX_IMAGE_WIDTH = 1200;
+const KEEP_AS_IS = /^image\/(jpeg|png|gif|webp)$/;
+
+export async function prepareImage(blob: Blob): Promise<{ blob: Blob; width: number; height: number } | null> {
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const { naturalWidth: w, naturalHeight: h } = img;
+    if (!w || !h || (w < 24 && h < 24)) return null;
+    const scale = Math.min(1, MAX_IMAGE_WIDTH / w);
+    if (scale === 1 && KEEP_AS_IS.test(blob.type) && blob.size < 500_000) return { blob, width: w, height: h };
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const encode = (type: string, quality?: number) => new Promise<Blob | null>((r) => canvas.toBlob(r, type, quality));
+    let out = await encode("image/webp", 0.85);
+    // Browsers that can't write WebP fall back to PNG; photos are smaller as JPEG.
+    if (!out || out.type !== "image/webp") out = await encode(/jpeg/.test(blob.type) ? "image/jpeg" : "image/png", 0.85);
+    return out ? { blob: out, width: canvas.width, height: canvas.height } : null;
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 // ---- PDF ----

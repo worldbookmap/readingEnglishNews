@@ -9,7 +9,9 @@ import { importArchiveBook, importPublicBook, importStandardEbook, saveBook, typ
 import { analyze, GRAMMAR_MODEL, MAX_GRAMMAR_CHARS, type Grammar } from "@/lib/grammar";
 import { ingestPopular, ingestUrl } from "@/lib/ingest";
 import { importStudyWords } from "@/lib/studylang";
+import { bookImagePrefix, deleteBookImages, isBookKey, uploadBookImage } from "@/lib/bookImages";
 import type { Block } from "@/lib/extract";
+import { z } from "zod";
 import { db, type SavedSentenceRow, type SavedWordRow } from "@/lib/supabase";
 
 export async function login(formData: FormData) {
@@ -60,8 +62,10 @@ export async function setReread(articleId: string, reread: boolean) {
 
 // Removes the article; its saved words and sentences go with it (on delete cascade).
 export async function deleteArticle(articleId: string) {
-  const { data, error } = await db().from("articles").delete().eq("id", articleId).select("source");
+  const { data, error } = await db().from("articles").delete().eq("id", articleId).select("source, url");
   if (error) throw error;
+  const url = String(data?.[0]?.url ?? "");
+  if (url.startsWith("book:")) await deleteBookImages(url.slice(5));
   revalidatePath("/");
   revalidatePath("/books");
   revalidatePath("/history");
@@ -102,16 +106,74 @@ export async function setArticleBody(articleId: string, text: string) {
   revalidatePath(`/articles/${articleId}`);
 }
 
-// "직접 입력" on 책: the reader types or pastes a whole book (or a .txt file's contents).
+// One image of an EPUB being saved (sent one at a time: a request body is limited to a
+// few MB). Returns its public URL.
+export async function addBookImage(formData: FormData): Promise<string> {
+  const file = formData.get("file");
+  if (!(file instanceof Blob)) throw new Error("no image");
+  return uploadBookImage(String(formData.get("key") ?? ""), String(formData.get("name") ?? ""), file);
+}
+
+const markSchema = z.object({
+  start: z.number().int().min(0),
+  end: z.number().int().min(1),
+  bold: z.literal(true).optional(),
+  italic: z.literal(true).optional(),
+});
+const blocksSchema = z.array(
+  z.union([
+    z.object({ type: z.enum(["p", "h", "quote", "li"]), text: z.string().min(1).max(50_000), marks: z.array(markSchema).max(5000).optional() }),
+    z.object({
+      type: z.literal("img"),
+      src: z.string().max(1000),
+      caption: z.string().max(1000).optional(),
+      width: z.number().int().positive().max(20_000).optional(),
+      height: z.number().int().positive().max(20_000).optional(),
+    }),
+  ]),
+);
+
+// An EPUB's blocks (with bold/italic and its uploaded images), checked: images must be
+// this book's own uploads and marks must lie inside their text.
+function parseBookBlocks(json: string, key: string): Block[] | null {
+  let parsed;
+  try {
+    parsed = blocksSchema.safeParse(JSON.parse(json));
+  } catch {
+    return null;
+  }
+  if (!parsed.success) return null;
+  const prefix = bookImagePrefix(key);
+  return parsed.data.flatMap((b): Block[] => {
+    if (b.type === "img") return b.src.startsWith(prefix) ? [b] : [];
+    const marks = b.marks?.filter((m) => m.start < m.end && m.end <= b.text.length);
+    return [{ type: b.type, text: b.text, ...(marks?.length ? { marks } : {}) }];
+  });
+}
+
+// "직접 입력" on 책: the reader types or pastes a whole book, or loads a file. An EPUB is
+// sent as blocks (`blocks` + the `key` its images were uploaded under), anything else as text.
 export async function addBook(_prev: { error: string | null }, formData: FormData): Promise<{ error: string | null }> {
   const title = String(formData.get("title") ?? "").replace(/\s+/g, " ").trim();
   const author = String(formData.get("author") ?? "").replace(/\s+/g, " ").trim();
   const text = String(formData.get("text") ?? "");
+  const blocksJson = formData.get("blocks");
+  const key = String(formData.get("key") ?? "");
   if (!title) return { error: "제목을 입력해주세요" };
+  const blocks = typeof blocksJson === "string" && isBookKey(key) ? parseBookBlocks(blocksJson, key) : undefined;
+  if (blocks === null) return { error: "저장하지 못했어요. 다시 시도해주세요" };
   let id: string;
   try {
-    id = await saveBook({ url: `book:${crypto.randomUUID()}`, title, author: author || null, summary: null, imageUrl: null, text });
+    id = await saveBook({
+      url: `book:${blocks ? key : crypto.randomUUID()}`,
+      title,
+      author: author || null,
+      summary: null,
+      imageUrl: null,
+      ...(blocks ? { blocks } : { text }),
+    });
   } catch (e) {
+    if (blocks) await deleteBookImages(key);
     return { error: e instanceof Error && e.message === "본문이 너무 짧아요" ? e.message : "저장하지 못했어요. 다시 시도해주세요" };
   }
   revalidatePath("/");

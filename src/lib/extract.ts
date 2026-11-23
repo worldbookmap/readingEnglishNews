@@ -5,8 +5,17 @@ import { parseHTML } from "linkedom";
 // source site is ever injected into our pages, and the reader can tokenize the text
 // into clickable words/sentences.
 export type Block =
-  | { type: "p" | "h" | "quote" | "li"; text: string }
-  | { type: "img"; src: string; caption?: string };
+  | { type: "p" | "h" | "quote" | "li"; text: string; marks?: Mark[] }
+  | { type: "img"; src: string; caption?: string; width?: number; height?: number };
+
+// Bold/italic text in a block, as character ranges [start, end) of its `text`
+// (books loaded from an EPUB or Standard Ebooks).
+export interface Mark {
+  start: number;
+  end: number;
+  bold?: true;
+  italic?: true;
+}
 
 export interface ExtractedArticle {
   title: string;
