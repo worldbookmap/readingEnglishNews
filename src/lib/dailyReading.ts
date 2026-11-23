@@ -8,7 +8,7 @@ import { db, type BookPageRow } from "./supabase";
 //
 // The Daily Stoic has one meditation per day of the year, each starting with a heading
 // like "November 3rd ACCEPTING WHAT IS" (date + title). Today's is found in the saved
-// book's pages.
+// book's pages (the most recently added copy, if the book was uploaded again).
 
 const BOOK_TITLE = "%daily stoic%";
 const MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December";
@@ -37,7 +37,7 @@ function todayLabel() {
 }
 
 export async function todaysReading(): Promise<DailyReading | null> {
-  const book = await db().from("articles").select("id").eq("source", "book").ilike("title", BOOK_TITLE).limit(1).maybeSingle();
+  const book = await db().from("articles").select("id").eq("source", "book").ilike("title", BOOK_TITLE).order("fetched_at", { ascending: false }).limit(1).maybeSingle();
   if (book.error) throw book.error;
   if (!book.data) return null;
   const bookId = book.data.id as string;
