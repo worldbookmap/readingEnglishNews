@@ -14,7 +14,11 @@ export function ReadingPosition({ articleId, page, resumeBlock }: { articleId: s
   const [resumed, setResumed] = useState(false);
   const lastSaved = useRef(resumeBlock);
 
+  // Only when the page is opened: a refresh (e.g. switching the translation mode) brings
+  // a newer saved position, and jumping to it would lose the place being read.
+  const resumeOnce = useRef(resumeBlock);
   useEffect(() => {
+    const resumeBlock = resumeOnce.current;
     if (resumeBlock <= 0) return;
     // After Next.js has scrolled to the top for the navigation.
     const t = window.setTimeout(() => {
@@ -28,7 +32,7 @@ export function ReadingPosition({ articleId, page, resumeBlock }: { articleId: s
       window.clearTimeout(t);
       window.clearTimeout(hide);
     };
-  }, [resumeBlock]);
+  }, []);
 
   useEffect(() => {
     let timer: number | undefined;
