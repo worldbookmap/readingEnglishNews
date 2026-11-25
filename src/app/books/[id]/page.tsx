@@ -54,7 +54,8 @@ export default async function BookPage({ params, searchParams }: PageProps<"/boo
   return (
     <article className="mx-auto max-w-2xl">
       <OpenBookPage articleId={id} page={page} remember={jumpTo === null} />
-      <header className="mb-8 border-b border-line pb-6">
+      {/* data-mdtr-skip keeps the 번역 노트 extension to the book text itself. */}
+      <header data-mdtr-skip="" className="mb-8 border-b border-line pb-6">
         <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
           <span className="font-semibold uppercase tracking-wide text-accent">책</span>
           <span>·</span>
@@ -129,10 +130,10 @@ export default async function BookPage({ params, searchParams }: PageProps<"/boo
           )}
         </>
       ) : (
-        <p className="rounded-xl border border-dashed border-line p-8 text-center text-muted">이 페이지를 찾을 수 없어요.</p>
+        <p data-mdtr-skip="" className="rounded-xl border border-dashed border-line p-8 text-center text-muted">이 페이지를 찾을 수 없어요.</p>
       )}
 
-      <div className="mt-10 space-y-6 border-t border-line pt-6">
+      <div data-mdtr-skip="" className="mt-10 space-y-6 border-t border-line pt-6">
         <Pagination href={href} page={page} count={b.page_count} />
         {page >= b.page_count && <ReadToggle articleId={id} readAt={b.read_at} size="lg" />}
       </div>

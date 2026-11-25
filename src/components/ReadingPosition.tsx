@@ -56,7 +56,7 @@ export function ReadingPosition({ articleId, page, resumeBlock }: { articleId: s
 
   if (!resumed) return null;
   return (
-    <div className="fixed inset-x-0 bottom-6 z-40 flex justify-center px-4">
+    <div data-mdtr-skip="" className="fixed inset-x-0 bottom-6 z-40 flex justify-center px-4">
       <div className="flex items-center gap-3 rounded-full bg-ink px-4 py-2 text-sm text-paper shadow-lg">
         <span>마지막으로 읽던 곳이에요</span>
         <button

@@ -163,94 +163,97 @@ export function Reader({ articleId, title, page, blocks, translations, translati
         />
       </div>
 
-      <SavedSummary title={title} page={page} blocks={blocks} words={[...words.values()]} sentences={[...sentences.values()]} />
+      {/* Everything but the text above stays out of the 번역 노트 extension's paragraphs. */}
+      <div data-mdtr-skip="">
+        <SavedSummary title={title} page={page} blocks={blocks} words={[...words.values()]} sentences={[...sentences.values()]} />
 
-      {selection && !active && !grammarFor && (
-        <SelectionBar
-          pressRef={barPressRef}
-          text={selection.text}
-          saved={sentences.has(selection.text)}
-          onError={onError}
-          onSave={async () => {
-            await doSaveSentence(selection.text);
-            window.getSelection()?.removeAllRanges();
-            setSelection(null);
-          }}
-          onAnalyze={() => {
-            setGrammarFor(selection.text);
-            window.getSelection()?.removeAllRanges();
-          }}
-          onOpenPhrase={
-            selection.phrase &&
-            (() => {
-              const { word, els } = selection.phrase!;
-              setActive({ word, sentence: selection.sentence, els });
+        {selection && !active && !grammarFor && (
+          <SelectionBar
+            pressRef={barPressRef}
+            text={selection.text}
+            saved={sentences.has(selection.text)}
+            onError={onError}
+            onSave={async () => {
+              await doSaveSentence(selection.text);
               window.getSelection()?.removeAllRanges();
-            })
-          }
-        />
-      )}
+              setSelection(null);
+            }}
+            onAnalyze={() => {
+              setGrammarFor(selection.text);
+              window.getSelection()?.removeAllRanges();
+            }}
+            onOpenPhrase={
+              selection.phrase &&
+              (() => {
+                const { word, els } = selection.phrase!;
+                setActive({ word, sentence: selection.sentence, els });
+                window.getSelection()?.removeAllRanges();
+              })
+            }
+          />
+        )}
 
-      {active && (
-        <WordPopover
-          key={active.word + active.sentence}
-          active={active}
-          savedWord={words.get(active.word) ?? null}
-          sentenceSaved={sentences.has(active.sentence)}
-          onClose={() => setActive(null)}
-          onError={onError}
-          onSaveWord={async (definition, note) => {
-            const row = await saveWord({
-              articleId,
-              word: active.word,
-              context: active.sentence,
-              definition: formatDefinition(definition),
-              phonetic: definition?.phonetic ?? null,
-              note,
-            });
-            setWords((m) => new Map(m).set(row.word, row));
-            flash(`'${row.word}' 단어장에 저장했어요`);
-          }}
-          onUpdateNote={async (note) => {
-            const row = words.get(active.word);
-            if (!row) return;
-            const updated = await updateWordNote(row.id, note);
-            setWords((m) => new Map(m).set(updated.word, updated));
-            flash("메모를 저장했어요");
-          }}
-          onRemoveWord={async () => {
-            const row = words.get(active.word);
-            if (!row) return;
-            await removeWord(row.id);
-            setWords((m) => {
-              const next = new Map(m);
-              next.delete(active.word);
-              return next;
-            });
-            flash(active.word.includes(" ") ? "표현 저장을 취소했어요" : "단어 저장을 취소했어요");
-          }}
-          onToggleSentence={() =>
-            sentences.has(active.sentence) ? doRemoveSentence(active.sentence) : doSaveSentence(active.sentence)
-          }
-        />
-      )}
+        {active && (
+          <WordPopover
+            key={active.word + active.sentence}
+            active={active}
+            savedWord={words.get(active.word) ?? null}
+            sentenceSaved={sentences.has(active.sentence)}
+            onClose={() => setActive(null)}
+            onError={onError}
+            onSaveWord={async (definition, note) => {
+              const row = await saveWord({
+                articleId,
+                word: active.word,
+                context: active.sentence,
+                definition: formatDefinition(definition),
+                phonetic: definition?.phonetic ?? null,
+                note,
+              });
+              setWords((m) => new Map(m).set(row.word, row));
+              flash(`'${row.word}' 단어장에 저장했어요`);
+            }}
+            onUpdateNote={async (note) => {
+              const row = words.get(active.word);
+              if (!row) return;
+              const updated = await updateWordNote(row.id, note);
+              setWords((m) => new Map(m).set(updated.word, updated));
+              flash("메모를 저장했어요");
+            }}
+            onRemoveWord={async () => {
+              const row = words.get(active.word);
+              if (!row) return;
+              await removeWord(row.id);
+              setWords((m) => {
+                const next = new Map(m);
+                next.delete(active.word);
+                return next;
+              });
+              flash(active.word.includes(" ") ? "표현 저장을 취소했어요" : "단어 저장을 취소했어요");
+            }}
+            onToggleSentence={() =>
+              sentences.has(active.sentence) ? doRemoveSentence(active.sentence) : doSaveSentence(active.sentence)
+            }
+          />
+        )}
 
-      {grammarFor && !active && (
-        <GrammarPanel
-          key={grammarFor}
-          text={grammarFor}
-          saved={sentences.has(grammarFor)}
-          onClose={() => setGrammarFor(null)}
-          onSave={() => doSaveSentence(grammarFor)}
-          onError={onError}
-        />
-      )}
+        {grammarFor && !active && (
+          <GrammarPanel
+            key={grammarFor}
+            text={grammarFor}
+            saved={sentences.has(grammarFor)}
+            onClose={() => setGrammarFor(null)}
+            onSave={() => doSaveSentence(grammarFor)}
+            onError={onError}
+          />
+        )}
 
-      {toast && (
-        <div className="pointer-events-none fixed inset-x-0 top-16 z-50 flex justify-center px-4">
-          <div className="rounded-full bg-ink px-4 py-2 text-sm text-paper shadow-lg">{toast}</div>
-        </div>
-      )}
+        {toast && (
+          <div className="pointer-events-none fixed inset-x-0 top-16 z-50 flex justify-center px-4">
+            <div className="rounded-full bg-ink px-4 py-2 text-sm text-paper shadow-lg">{toast}</div>
+          </div>
+        )}
+      </div>
     </>
   );
 }
